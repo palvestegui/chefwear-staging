@@ -1,0 +1,42 @@
+export const INITIAL_ORDER_STATE = {
+  customer: '',
+  customerFirstName: '',
+  customerLastName: '',
+  phone: '',
+  email: '',
+  city: 'Santa Cruz',
+  address: '',
+  items: [],
+  category: 'Personal',
+  pricingTier: 'Estándar Raleo',
+  clientType: 'Particular / Individuo',
+  contactRole: 'PARTICULAR',
+  accountId: 'ACC-000',
+  companyName: 'Cliente Particular',
+  paymentMethod: '50/50 - Adelantado/Entrega',
+  manualDiscount: 0,
+  notes: '',
+  deliveryTime: '15 días hábiles a partir del primer depósito',
+  status: 'Estimado',
+  linkMode: 'existing',
+  linkId: '',
+  contactId: '',
+  sellerName: '',
+  sellerEmail: '',
+  sellerUid: '',
+  isInstitutional: false,
+  institutionalRoster: []
+};
+
+export const INITIAL_ITEM_STATE = {
+  name: 'Filipina',
+  fabric: 'Drill de 8oz',
+  fabricColor: '',
+  qty: 1,
+  size: 'M',
+  measurements: {},
+  services: [] as string[],
+  pocketName: '',
+  customPocketDetails: '',
+  customServicePrices: {} as Record<string, number>
+};

@@ -1,0 +1,7 @@
+feat(catalog): configure editable manual costs and dynamic grouping for services
+
+- Added `Costo Adicional Editable` impact option inside the pricing matrix in Settings.
+- Engineered conditional input fields spawning in the Sales interface to map manual service values (e.g., custom embroideries) on the fly, propagating directly into the pricing calculators.
+- Extended the data model with an `exclusionGroup` text input for administrators to natively declare grouped mutual exclusivity (e.g. binding tirote variations natively).
+- Deprecated hardcoded cross-checks on selected items in favor of a clean collision-check based on string matching against the catalog's exclusion tags.
+- Verified dynamic price rendering on visual invoices (`+BsX.xx` lines) to honor arbitrary values bound to customServicePrices parameters securely.

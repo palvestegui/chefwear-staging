@@ -1,0 +1,298 @@
+const fs = require('fs');
+
+const code = `import React, { useState } from 'react';
+import * as LucideIcons from 'lucide-react';
+import { Ruler } from 'lucide-react';
+const { 
+  ImageIcon, FileText, CheckCircle, Lock, Building2, User, Users, ChevronDown, ChevronUp
+} = LucideIcons;
+import { StatusBadge } from '../ui/StatusBadge';
+import { consolidateCommercialItems } from '../../utils/orderItemConsolidation';
+
+export interface ProductionViewProps {
+  orders: any[];
+  setViewingLogosOrderId: (id: string | null) => void;
+  setViewingInvoiceId: (id: string | null) => void;
+  isWriteDisabled: (view: string) => boolean;
+  updateStatus: (id: string, status: string) => Promise<void>;
+  setExpandedLogoUrl: (url: string | null) => void;
+  onOpenEditRoster?: (order: any, readOnly?: boolean) => void;
+}
+
+const hasValues = (obj: any) => obj && Object.values(obj).some((v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0');
+
+const getGarmentSpecs = (order: any, item: any) => {
+  const filSibling = (order.items || []).find((it: any) => it.name?.toLowerCase().includes('filipina'));
+  const filMeasurements = (filSibling?.measurements && Object.keys(filSibling.measurements).length > 0)
+    ? filSibling.measurements
+    : (item.name?.toLowerCase().includes('filipina') && item.measurements ? item.measurements : (order.measurements?.filipina || order.measurements || order.contact?.measurements?.filipina || order.contact?.measurements || null));
+
+  const panSibling = (order.items || []).find((it: any) => it.name?.toLowerCase().includes('pantalon') || it.name?.toLowerCase().includes('pantalón'));
+  const panMeasurements = (panSibling?.measurements && Object.keys(panSibling.measurements).length > 0)
+    ? panSibling.measurements
+    : ((item.name?.toLowerCase().includes('pantalon') || item.name?.toLowerCase().includes('pantalón')) && item.measurements ? item.measurements : (order.measurements?.pantalon || order.measurements || order.contact?.measurements?.pantalon || order.contact?.measurements || null));
+
+  const hasFilSpecs = hasValues(filMeasurements);
+  const hasPanSpecs = hasValues(panMeasurements);
+  const hasDirectSpecs = hasValues(item.measurements);
+  
+  const isBundle = item.name?.toLowerCase().includes('completo udi');
+  const isFilipina = item.name?.toLowerCase().includes('filipina');
+  const isPantalon = item.name?.toLowerCase().includes('pantal');
+  
+  const showFil = hasFilSpecs && (isBundle || isFilipina);
+  const showPan = hasPanSpecs && (isBundle || isPantalon);
+  
+  const isCustom = showFil || showPan || (hasDirectSpecs && !isFilipina && !isPantalon && !isBundle);
+  
+  return { filMeasurements, panMeasurements, showFil, showPan, isCustom, hasDirectSpecs };
+};
+
+const MobileMeasurementGrid = ({ label, specs, isPan }: { label: string, specs: any, isPan?: boolean }) => {
+  const points = isPan ? [
+    { k: 'Cintura', v: specs.cintura || specs.P_Cintura },
+    { k: 'Cadera', v: specs.cadera || specs.P_Cadera },
+    { k: 'Ancho Pierna', v: specs.anchoPierna || specs.P_Ancho_Pierna },
+    { k: 'Largo Pierna', v: specs.largoPierna || specs.P_Largo_Pierna }
+  ] : [
+    { k: 'Hombros', v: specs.hombros || specs.F_Hombros },
+    { k: 'Cuello', v: specs.cuello || specs.F_Cuello },
+    { k: 'Pecho', v: specs.anchoTorso || specs.F_Ancho_Torso },
+    { k: 'Largo Torso', v: specs.largoTorso || specs.F_Largo_Torso },
+    { k: 'Cintura', v: specs.cintura || specs.F_Cintura },
+    { k: 'Cadera', v: specs.cadera || specs.F_Cadera },
+    { k: 'Largo Brazo', v: specs.largoBrazo || specs.F_Largo_Brazo },
+    { k: 'Ancho Brazo', v: specs.anchoBrazo || specs.F_Ancho_Brazo }
+  ];
+
+  return (
+    <div>
+      <span className="text-[10px] font-black text-amber-500 mb-1.5 block">{label}</span>
+      <div className="grid grid-cols-2 gap-1.5 w-full">
+        {points.map((p, i) => (
+          <div key={i} className="bg-stone-900/90 border border-stone-800/80 rounded-md p-1.5 flex flex-col items-center justify-center text-center w-full">
+            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block truncate w-full">{p.k}</span>
+            <span className="text-xs font-mono font-black text-amber-400 whitespace-nowrap mt-0.5">{p.v || '—'} cm</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const DesktopMeasurementInline = ({ label, specs, isPan }: { label: string, specs: any, isPan?: boolean }) => {
+  const points = isPan ? [
+    { k: 'Cintura', v: specs.cintura || specs.P_Cintura },
+    { k: 'Cadera', v: specs.cadera || specs.P_Cadera },
+    { k: 'Ancho Pierna', v: specs.anchoPierna || specs.P_Ancho_Pierna },
+    { k: 'Largo Pierna', v: specs.largoPierna || specs.P_Largo_Pierna }
+  ] : [
+    { k: 'Hombros', v: specs.hombros || specs.F_Hombros },
+    { k: 'Cuello', v: specs.cuello || specs.F_Cuello },
+    { k: 'Pecho', v: specs.anchoTorso || specs.F_Ancho_Torso },
+    { k: 'Largo Torso', v: specs.largoTorso || specs.F_Largo_Torso },
+    { k: 'Cintura', v: specs.cintura || specs.F_Cintura },
+    { k: 'Cadera', v: specs.cadera || specs.F_Cadera },
+    { k: 'Largo Brazo', v: specs.largoBrazo || specs.F_Largo_Brazo },
+    { k: 'Ancho Brazo', v: specs.anchoBrazo || specs.F_Ancho_Brazo }
+  ];
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono text-stone-300">
+      <span className="font-black text-amber-500 uppercase">{label}:</span>
+      {points.map((p, i) => (
+        <span key={i} className="whitespace-nowrap">
+          <span className="text-stone-500">{p.k}:</span> <span className="text-amber-400 font-bold">{p.v || '—'} cm</span>
+        </span>
+      ))}
+    </div>
+  );
+};
+
+export const ProductionView: React.FC<ProductionViewProps> = (props) => {
+  const { orders, isWriteDisabled, updateStatus, setViewingInvoiceId } = props;
+  const [expandedMeasurements, setExpandedMeasurements] = useState<Record<string, boolean>>({});
+
+  const toggleMeasurements = (idx: string) => {
+    setExpandedMeasurements(prev => ({ ...prev, [idx]: !prev[idx] }));
+  };
+
+  const ActionButtons = ({ order }: { order: any }) => (
+    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+      <button onClick={() => setViewingInvoiceId(order.id)} className="bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 h-7 px-2 rounded-lg font-black uppercase text-[10px] tracking-wider transition shrink-0 flex items-center justify-center">
+        📄 <span className="hidden sm:inline landscape:inline ml-1">Orden</span>
+      </button>
+      {order.status === 'Material Listo' ? (
+        !isWriteDisabled('produccion') ? (
+          <button onClick={() => updateStatus(order.id, 'En Producción')} className="bg-purple-600 text-white h-7 px-2.5 rounded-lg font-black uppercase text-[10px] tracking-wider hover:bg-purple-500 transition shadow-lg flex items-center justify-center gap-1 shrink-0">▶ INICIAR</button>
+        ) : (
+          <span className="bg-stone-850 border border-stone-800 text-stone-500 h-7 px-2 rounded-lg font-black uppercase text-[10px] flex items-center justify-center shrink-0"><Lock size={10}/></span>
+        )
+      ) : (
+        !isWriteDisabled('produccion') ? (
+          <button onClick={() => updateStatus(order.id, 'Producido')} className="bg-indigo-600 text-white h-7 px-2.5 rounded-lg font-black uppercase text-[10px] tracking-wider hover:bg-indigo-500 transition shadow-lg flex items-center justify-center gap-1 shrink-0"><CheckCircle size={12}/> TERMINAR</button>
+        ) : (
+          <span className="bg-stone-850 border border-stone-800 text-stone-500 h-7 px-2 rounded-lg font-black uppercase text-[10px] flex items-center justify-center shrink-0"><Lock size={10}/></span>
+        )
+      )}
+    </div>
+  );
+
+  return (
+    <div className="w-full space-y-6 animate-in fade-in">
+      {/* DESKTOP LEDGER (lg+) */}
+      <div className="hidden lg:block w-full bg-stone-900 border border-stone-800 rounded-2xl overflow-hidden shadow-sm">
+        <div className="grid grid-cols-[180px_100px_minmax(150px,1fr)_120px_150px_160px] gap-2 p-3 border-b border-stone-800 text-[10px] font-mono uppercase tracking-wider text-stone-400 bg-stone-950/50 items-center">
+          <div>CLIENTE</div>
+          <div>ESTADO</div>
+          <div>PRENDAS & TELA</div>
+          <div>TALLA / MEDIDAS</div>
+          <div>NOTAS & BORDADOS</div>
+          <div>ACCIONES</div>
+        </div>
+        <div className="divide-y divide-stone-800/60">
+          {orders.filter(o => ['Material Listo', 'En Producción', 'En Confección'].includes(o.status)).flatMap(order => {
+            const isInst = Boolean(order.isInstitutional || order.institutionalRoster?.length > 0 || order.items?.some((it:any) => Boolean(it.recipientName)));
+            const items = consolidateCommercialItems(order.items || [], isInst);
+            return items.map((item, idx) => {
+              const { isCustom, filMeasurements, panMeasurements, showFil, showPan, hasDirectSpecs } = getGarmentSpecs(order, item);
+              const k = \`\${order.id}-\${idx}\`;
+              return (
+                <React.Fragment key={k}>
+                  <div className="grid grid-cols-[180px_100px_minmax(150px,1fr)_120px_150px_160px] gap-2 py-3 px-3 items-center hover:bg-stone-800/30 transition">
+                    <div className="font-black text-sm text-stone-200 uppercase tracking-tight truncate max-w-[180px]">{order.customer}</div>
+                    <div className="scale-90 origin-left"><StatusBadge status={order.status} /></div>
+                    <div className="text-xs text-stone-300 font-bold truncate">
+                      <span className="text-amber-500/80 mr-1">x{item.qty || 1}</span> {item.name} <span className="text-[10px] text-stone-500 font-mono block truncate">{item.fabric || 'Drill 8oz'}</span>
+                    </div>
+                    <div>
+                      {isCustom ? (
+                        <button onClick={() => toggleMeasurements(k)} className="flex items-center gap-1 bg-stone-900 hover:bg-stone-800 border border-amber-500/40 text-amber-500 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition">
+                          <Ruler size={10}/> 8 Medidas {expandedMeasurements[k] ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                        </button>
+                      ) : (
+                        <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-2 py-1 rounded inline-block">
+                          Talla: {item.size || 'STD'}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-amber-500/90 italic truncate max-w-[150px]">
+                      {item.embroideries?.join(', ') || order.notes || '—'}
+                    </div>
+                    <ActionButtons order={order} />
+                  </div>
+                  {expandedMeasurements[k] && isCustom && (
+                    <div className="bg-stone-950 p-3 border-t border-stone-800/80 flex flex-col gap-2">
+                      {showFil && <DesktopMeasurementInline label="👘 FILIPINA" specs={filMeasurements} />}
+                      {showPan && <DesktopMeasurementInline label="👖 PANTALÓN" specs={panMeasurements} isPan />}
+                      {(!showFil && !showPan && hasDirectSpecs) && (
+                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono text-stone-300">
+                           <span className="font-black text-amber-500 uppercase">MEDIDAS:</span>
+                           {Object.entries(item.measurements).filter(([_, v]) => v && String(v).trim() !== '' && String(v).trim() !== '0').map(([mk, mv]) => (
+                             <span key={mk} className="whitespace-nowrap"><span className="text-stone-500 uppercase">{mk}:</span> <span className="text-amber-400 font-bold">{String(mv)} cm</span></span>
+                           ))}
+                         </div>
+                      )}
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            });
+          })}
+        </div>
+      </div>
+
+      {/* MOBILE CARD ( < lg ) */}
+      <div className="lg:hidden flex flex-col gap-4">
+        {orders.filter(o => ['Material Listo', 'En Producción', 'En Confección'].includes(o.status)).map(order => {
+          const isInst = Boolean(order.isInstitutional || order.institutionalRoster?.length > 0 || order.items?.some((it:any) => Boolean(it.recipientName)));
+          const items = consolidateCommercialItems(order.items || [], isInst);
+          return (
+            <div key={order.id} className="bg-stone-900 border border-stone-800 p-3 sm:p-4 rounded-2xl shadow-sm flex flex-col landscape:flex-row gap-3 overflow-hidden">
+              
+              {/* Header Pane */}
+              <div className="flex items-center justify-between landscape:flex-col landscape:items-start landscape:justify-start landscape:w-[35%] gap-2 mb-1 landscape:mb-0 shrink-0">
+                <div className="flex items-center landscape:flex-col landscape:items-start gap-1.5 truncate w-full">
+                  <span className="font-black text-base text-stone-200 uppercase truncate max-w-[200px] landscape:max-w-full">{order.customer}</span>
+                  <div className="scale-75 origin-left shrink-0"><StatusBadge status={order.status} /></div>
+                </div>
+                <div className="landscape:w-full landscape:mt-2">
+                  <ActionButtons order={order} />
+                </div>
+              </div>
+
+              {/* Items Pane */}
+              <div className="flex flex-col gap-3 overflow-y-auto landscape:max-h-[280px] custom-scrollbar landscape:pr-2 landscape:w-[65%]">
+                {items.map((item, idx) => {
+                  const { isCustom, filMeasurements, panMeasurements, showFil, showPan, hasDirectSpecs } = getGarmentSpecs(order, item);
+                  const k = \`\${order.id}-\${idx}\`;
+                  return (
+                    <div key={k} className="bg-stone-950 p-3 rounded-xl border border-stone-800 flex flex-col justify-between shrink-0">
+                      <div className="flex justify-between items-start mb-2 pb-2 border-b border-stone-900">
+                        <div>
+                          <div className="font-bold text-stone-200 text-sm tracking-tight">{item.name}</div>
+                          <div className="text-[10px] text-stone-500 font-mono mt-0.5">{item.fabric || 'Drill 8oz'}</div>
+                        </div>
+                        <span className="text-amber-400 font-mono font-black text-sm shrink-0">x{item.qty || 1}</span>
+                      </div>
+                      
+                      {!isCustom && (
+                        <div className="mb-2">
+                          <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-2.5 py-1 rounded-md inline-block">
+                            Talla: {item.size || 'STD'}
+                          </span>
+                        </div>
+                      )}
+
+                      {isCustom && (
+                        <div className="mb-2">
+                          <button 
+                            onClick={() => toggleMeasurements(k)}
+                            className="w-full flex items-center justify-between bg-stone-900 hover:bg-stone-800 border border-stone-800 text-amber-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition"
+                          >
+                            <span className="flex items-center gap-1.5"><Ruler size={10}/> Medidas</span>
+                            {expandedMeasurements[k] ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                          </button>
+                          {expandedMeasurements[k] && (
+                            <div className="bg-stone-950/90 border border-amber-500/30 p-2.5 rounded-xl mt-2 font-mono w-full space-y-3">
+                              {showFil && <MobileMeasurementGrid label="👘 FILIPINA" specs={filMeasurements} />}
+                              {showPan && <MobileMeasurementGrid label="👖 PANTALÓN" specs={panMeasurements} isPan />}
+                              {(!showFil && !showPan && hasDirectSpecs) && (
+                                <div>
+                                  <span className="text-[10px] font-black text-amber-500 mb-1.5 block">MEDIDAS</span>
+                                  <div className="grid grid-cols-2 gap-1.5 w-full">
+                                    {Object.entries(item.measurements).filter(([_, v]) => v && String(v).trim() !== '' && String(v).trim() !== '0').map(([mk, mv]) => (
+                                      <div key={mk} className="bg-stone-900/90 border border-stone-800/80 rounded-md p-1.5 flex flex-col items-center justify-center text-center w-full">
+                                        <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block truncate w-full">{mk}</span>
+                                        <span className="text-xs font-mono font-black text-amber-400 whitespace-nowrap mt-0.5">{String(mv)} cm</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {item.embroideries && item.embroideries.length > 0 && (
+                        <div className="bg-stone-900/60 p-2 rounded-lg border border-stone-800 mt-2">
+                          <div className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Bordados</div>
+                          <div className="text-[10px] text-amber-400/90 font-bold truncate">
+                            {item.embroideries.join(', ')}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+`
+fs.writeFileSync('src/components/views/ProductionView.tsx', code);

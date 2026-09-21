@@ -1,0 +1,8 @@
+{
+  "name": "Azafrán Chefwear - Order Management",
+  "description": "App de gestión de pedidos, operativa, producción y diseño para Azafrán Chefwear. Administra ventas, revisión de pagos, tabla de confección y logística.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

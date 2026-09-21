@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile with role",
+      "type": "object",
+      "properties": {
+        "role": { "type": "string", "enum": ["admin", "seller"] },
+        "email": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["role", "email", "name"]
+    },
+    "contact": {
+      "title": "Contact",
+      "description": "Directory master contact record with corporate account linkage",
+      "type": "object",
+      "properties": {
+        "contactId": { "type": "string" },
+        "accountId": { "type": "string" },
+        "parentAccountId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "fullName": { "type": "string" },
+        "role": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "measurements": { "type": "object" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["contactId", "fullName"]
+    },
+    "clientAccount": {
+      "title": "ClientAccount",
+      "description": "Corporate client account record",
+      "type": "object",
+      "properties": {
+        "accountId": { "type": "string" },
+        "accountName": { "type": "string" },
+        "parentAccountId": { "type": "string" },
+        "accountType": { "type": "string" },
+        "pricingTier": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["accountId", "accountName"]
+    },
+    "order": {
+      "title": "Order",
+      "description": "A customer order, estimate, or invoice",
+      "type": "object",
+      "properties": {
+        "customer": { "type": "string" },
+        "category": { "type": "string" },
+        "accountId": { "type": "string" },
+        "companyName": { "type": "string" },
+        "isInstitutional": { "type": "boolean" },
+        "institutionalRoster": { "type": "array" },
+        "items": { "type": "array" },
+        "amountCollected": { "type": "number" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "timestamps": { "type": "object" },
+        "sellerId": { "type": "string" },
+        "sellerName": { "type": "string" },
+        "receipt": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["customer", "category", "items", "status", "createdAt", "updatedAt"]
+    },
+    "pricing": {
+      "title": "Pricing",
+      "description": "Store configuration and prices",
+      "type": "object",
+      "properties": {
+        "garments": { "type": "object" },
+        "fabrics": { "type": "object" },
+        "embroideries": { "type": "object" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/user" },
+      "description": "Roles and identifying information for users"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/order" },
+      "description": "Application orders and estimates."
+    },
+    "/masterContacts/{contactId}": {
+      "schema": { "$ref": "#/entities/contact" },
+      "description": "Master contact directory documents."
+    },
+    "/clientAccounts/{accountId}": {
+      "schema": { "$ref": "#/entities/clientAccount" },
+      "description": "Client account records."
+    },
+    "/pricing/{pricingId}": {
+      "schema": { "$ref": "#/entities/pricing" },
+      "description": "Global prices singleton."
+    }
+  }
+}

@@ -1,0 +1,36 @@
+  const directoryContacts = React.useMemo(() => {
+    let maxNum = 0;
+    masterContacts.forEach(mc => {
+        if (mc.contactId && mc.contactId.startsWith('CON-')) {
+            const num = parseInt(mc.contactId.replace('CON-', ''), 10);
+            if (!isNaN(num) && num > maxNum) maxNum = num;
+        }
+    });
+
+    const dynamicMap = new Map();
+    const masterContactNames = new Set();
+    
+    // Process masterContacts first, keeping each one distinct by its unique document ID
+    masterContacts.forEach(mc => {
+        const docId = mc.id || mc.contactId || `doc-${Math.random()}`;
+        let cid = mc.contactId;
+        if (!cid || !cid.startsWith('CON-')) {
+            maxNum++;
+            cid = `CON-${maxNum.toString().padStart(3, '0')}`;
+        }
+        
+        const fullName = mc.fullName || `${mc.contactNombre || ''} ${mc.contactApellido || ''}`.trim() || cid;
+        masterContactNames.add(fullName.toLowerCase().trim());
+
+        dynamicMap.set(docId, { 
+            ...mc, 
+            contactId: cid, 
+            fullName: fullName,
+            originalDocId: mc.id || mc.contactId,
+            sizingMatrix: mc.sizingMatrix || mc.sizingMatrix12PtCM || {}
+        });
+    });
+
+    // Then process legacy orders
+    orders.forEach(x => {
+        if (!x.customer) return;

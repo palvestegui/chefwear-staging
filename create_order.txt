@@ -1,0 +1,91 @@
+  };
+
+  const handleCreateOrder = async (e: any) => {
+    e.preventDefault();
+    if (newOrder.items.length === 0) return alert("Agrega al menos una prenda.");
+    const total = calculateTotalPrice(newOrder.items, newOrder.category, newOrder.paymentMethod, newOrder.manualDiscount, newOrder.clientType);
+    const collected = parseFloat(newOrder.amountCollected) || 0;
+
+    const fn = (newOrder.customerFirstName || '').trim();
+    const ln = (newOrder.customerLastName || '').trim();
+    const fullCustomerName = (`${fn} ${ln}`).trim() || (newOrder.customer || '').trim();
+    
+    // Compress image if exists
+    let compressedReceipt = null;
+    if (newOrder.receipt) {
+      compressedReceipt = await compressImage(newOrder.receipt);
+    }
+
+    // Table 1 Account ID Resolution & Auto-Creation on-the-fly
+    let finalAccountId = newOrder.accountId || '';
+    if (newOrder.clientType === 'Restaurante / Empresa' && newOrder.companyName && newOrder.companyName.trim()) {
+      const compName = newOrder.companyName.trim();
+      const matchedAcc = clientAccounts.find(a => (a.accountName || '').toLowerCase().trim() === compName.toLowerCase());
+      if (matchedAcc) {
+        finalAccountId = matchedAcc.accountId || matchedAcc.id;
+      } else {
+        let maxNum = 0;
+        clientAccounts.forEach(acc => {
+          const num = parseInt((acc.accountId || '').replace('ACC-', ''), 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        });
+        finalAccountId = `ACC-${String(maxNum + 1).padStart(3, '0')}`;
+
+        const accData = {
+          accountId: finalAccountId,
+          accountType: 'Restaurant',
+          accountName: compName,
+          parentAccountId: null,
+          contactNombre: fn,
+          contactApellido: ln,
+          phone: newOrder.phone || '',
+          email: newOrder.email || '',
+          deliveryCity: newOrder.city || 'Santa Cruz',
+          deliveryAddress: newOrder.address || '',
+          deliveryNotes: '',
+          logoEmbroidery: false,
+          logoPlacements: [],
+          logoFileLocation: '',
+          pricingTier: 'Estándar B2B',
+          createdAt: Date.now(),
+          createdBy: user?.uid || ''
+        };
+
+        try {
+          await setDoc(doc(db, 'clientAccounts', finalAccountId), accData);
+          console.log(`[ORDER-SAVE] Created new client account ${finalAccountId} for: ${compName}`);
+        } catch (err) {
+          console.error("Error creating client account during order save:", err);
+        }
+      }
+    }
+
+    let finalParentAccountId = newOrder.parentAccountId || '';
+    if (newOrder.clientType === 'Trabajador de Restaurante' && newOrder.parentAccountName && newOrder.parentAccountName.trim()) {
+      const pName = newOrder.parentAccountName.trim();
+      const matchedAcc = clientAccounts.find(a => (a.accountName || '').toLowerCase().trim() === pName.toLowerCase());
+      if (matchedAcc) {
+        finalParentAccountId = matchedAcc.accountId || matchedAcc.id;
+      } else {
+        let maxNum = 0;
+        clientAccounts.forEach(acc => {
+          const num = parseInt((acc.accountId || '').replace('ACC-', ''), 10);
+          if (!isNaN(num) && num > maxNum) maxNum = num;
+        });
+        finalParentAccountId = `ACC-${String(maxNum + 1).padStart(3, '0')}`;
+
+        const accData = {
+          accountId: finalParentAccountId,
+          accountType: 'Restaurant',
+          accountName: pName,
+          parentAccountId: null,
+          contactNombre: '',
+          contactApellido: '',
+          phone: '',
+          email: '',
+          deliveryCity: 'Santa Cruz',
+          deliveryAddress: '',
+          deliveryNotes: '',
+          logoEmbroidery: false,
+          logoPlacements: [],
+          logoFileLocation: '',

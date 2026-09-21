@@ -1,0 +1,56 @@
+  const handleRunAudit = async () => {
+    setIsAuditing(true);
+    setAuditStatusMsg('Escaneando colecciones de Firestore...');
+    try {
+      // 1. Audit contacts
+      setAuditStatusMsg('Auditando colección masterContacts...');
+      const unlinkedContacts: any[] = [];
+      masterContacts.forEach(c => {
+        const hasNoAccount = !c.accountId || c.accountId === 'Ninguna' || c.accountId === 'null' || c.accountId === '';
+        const hasNoRole = !c.role || c.role === '';
+        if (hasNoAccount || hasNoRole) {
+          unlinkedContacts.push({
+            id: c.contactId || c.id || c.originalDocId || 'N/A',
+            fullName: c.fullName || `${c.contactNombre || ''} ${c.contactApellido || ''}`.trim() || 'Sin Nombre',
+            reason: hasNoAccount && hasNoRole ? 'Sin accountId y Sin role' : (hasNoAccount ? 'Sin accountId' : 'Sin role')
+          });
+        }
+      });
+
+      // 2. Audit orders
+      setAuditStatusMsg('Auditando colección orders...');
+      const ordersMissingKeys: any[] = [];
+      orders.forEach(o => {
+        const missingAccount = !o.accountId || o.accountId === '';
+        const missingContact = !o.contactId || o.contactId === '';
+        if (missingAccount || missingContact) {
+          ordersMissingKeys.push({
+            id: o.id,
+            customer: o.customer || o.companyName || 'Sin Cliente',
+            docType: o.docType || 'ORDEN',
+            reason: missingAccount && missingContact ? 'Sin accountId y Sin contactId' : (missingAccount ? 'Sin accountId' : 'Sin contactId')
+          });
+        }
+      });
+
+      // 3. Audit orderItems
+      setAuditStatusMsg('Auditando colección orderItems (T4)...');
+      let scannedItemsCount = 0;
+      const orphanedOrderItems: any[] = [];
+      try {
+        const itemsSnap = await getDocs(collection(db, 'orderItems'));
+        scannedItemsCount = itemsSnap.size;
+        const validOrderIds = new Set(orders.map(o => o.id));
+        itemsSnap.docs.forEach(docSnap => {
+          const item = docSnap.data();
+          if (!item.orderId || !validOrderIds.has(item.orderId)) {
+            orphanedOrderItems.push({
+              id: docSnap.id,
+              orderId: item.orderId || 'N/A',
+              name: item.name || item.description || 'Ítem'
+            });
+          }
+        });
+      } catch (err) {
+        console.warn('Error querying orderItems for audit:', err);
+      }
