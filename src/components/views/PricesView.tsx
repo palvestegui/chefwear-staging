@@ -1,8 +1,8 @@
 import React from 'react';
-import { PriceReference } from '../PriceReference';
+import { PriceReference, PriceReferenceProps } from '../PriceReference';
 
 export interface PricesViewProps {
-  pricing: any;
+  pricing: PriceReferenceProps['pricing'];
 }
 
 export const PricesView: React.FC<PricesViewProps> = ({ pricing }) => {

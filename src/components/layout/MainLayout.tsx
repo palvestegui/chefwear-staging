@@ -14,7 +14,7 @@ interface MainLayoutProps {
   isApproved: boolean;
   ventasTab?: string;
   setVentasTab?: (tab: any) => void;
-  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad';
+  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento';
   setSettingsTab?: (tab: any) => void;
   invalidPriceFields?: Set<string>;
 }
@@ -108,6 +108,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       case 'crm': return 'Directorio de Clientes';
       case 'reportes': return 'Reportes y Métricas';
       case 'historial': return 'Historial de Órdenes';
+      case 'tarifario': return 'Ajustes · Tarifario Base';
+      case 'catalogo': return 'Ajustes · Catálogo';
+      case 'mantenimiento': return 'Ajustes · Mantenimiento';
       case 'ajustes':
         if (settingsTab === 'A') return 'Ajustes · Tarifario Base';
         if (settingsTab === 'B') return 'Ajustes · Especiales';
@@ -115,6 +118,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         if (settingsTab === 'D') return 'Ajustes · Descuentos';
         if (settingsTab === 'E') return 'Ajustes · Catálogo';
         if (settingsTab === 'seguridad') return 'Ajustes · Roles & Usuarios';
+        if (settingsTab === 'mantenimiento') return 'Ajustes · Mantenimiento';
         return 'Ajustes del Sistema';
       default: return 'Workspace';
     }

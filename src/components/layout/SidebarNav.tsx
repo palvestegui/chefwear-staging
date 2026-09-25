@@ -15,7 +15,8 @@ import {
   Tag, 
   ChevronDown,
   X,
-  Menu
+  Menu,
+  Wrench
 } from 'lucide-react';
 import { auth } from '../../firebase';
 import { signOut } from 'firebase/auth';
@@ -30,8 +31,8 @@ export interface SidebarNavProps {
   onToggleCollapse?: () => void;
   ventasTab?: string;
   setVentasTab?: (tab: any) => void;
-  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad';
-  setSettingsTab?: (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad') => void;
+  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento';
+  setSettingsTab?: (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento') => void;
   invalidPriceFields?: Set<string>;
 }
 
@@ -60,7 +61,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
   const [ventasExpanded, setVentasExpanded] = useState<boolean>(true);
 
   // Ajustes sub-menu expanded state
-  const isAjustesActive = activeTab === 'ajustes';
+  const isAjustesActive = ['ajustes', 'tarifario', 'catalogo', 'mantenimiento'].includes(activeTab);
   const [ajustesExpanded, setAjustesExpanded] = useState<boolean>(true);
 
   const hasTabAErrors = Array.from(invalidPriceFields || []).some(k => String(k).startsWith('tabA:'));
@@ -73,7 +74,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     }
   };
 
-  const handleSettingsSubTab = (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad') => {
+  const handleSettingsSubTab = (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento') => {
     setActiveTab('ajustes');
     if (setSettingsTab) {
       setSettingsTab(tab);
@@ -384,14 +385,19 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
               {!isCollapsed && ajustesExpanded && (
                 <div className="pl-6 pr-1 py-1 flex flex-col gap-0.5 mt-0.5 border-l border-stone-800 ml-4">
                   {[
-                    { id: 'A' as const, label: 'Tarifario Base', hasError: hasTabAErrors },
-                    { id: 'B' as const, label: 'Especiales', hasError: hasTabBErrors },
-                    { id: 'C' as const, label: 'Servicios', hasError: false },
-                    { id: 'D' as const, label: 'Descuentos', hasError: false },
-                    { id: 'E' as const, label: 'Catálogo', hasError: false },
-                    ...((canManageRoles || isSuperAdmin) ? [{ id: 'seguridad' as const, label: 'Roles & Usuarios', hasError: false }] : [])
+                    { id: 'A' as const, label: 'Tarifario Base', icon: undefined, hasError: hasTabAErrors },
+                    { id: 'B' as const, label: 'Especiales', icon: undefined, hasError: hasTabBErrors },
+                    { id: 'C' as const, label: 'Servicios', icon: undefined, hasError: false },
+                    { id: 'D' as const, label: 'Descuentos', icon: undefined, hasError: false },
+                    { id: 'E' as const, label: 'Catálogo', icon: undefined, hasError: false },
+                    ...((canManageRoles || isSuperAdmin) ? [{ id: 'seguridad' as const, label: 'Roles & Usuarios', icon: undefined, hasError: false }] : []),
+                    ...((isSuperAdmin || isAdmin) ? [{ id: 'mantenimiento' as const, label: 'Mantenimiento', icon: Wrench, hasError: false }] : [])
                   ].map(subItem => {
-                    const isActive = isAjustesActive && settingsTab === subItem.id;
+                    const isActive = (isAjustesActive && settingsTab === subItem.id) ||
+                      (activeTab === 'tarifario' && subItem.id === 'A') ||
+                      (activeTab === 'catalogo' && subItem.id === 'E') ||
+                      (activeTab === 'mantenimiento' && subItem.id === 'mantenimiento');
+                    const SubIcon = subItem.icon;
                     return (
                       <button
                         key={subItem.id}
@@ -402,7 +408,10 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                             : 'text-stone-400 hover:text-stone-200 hover:bg-stone-800/40'
                         }`}
                       >
-                        <span>{subItem.label}</span>
+                        <span className="flex items-center gap-1.5">
+                          {SubIcon && <SubIcon size={12} className="shrink-0 text-amber-500/80" />}
+                          <span>{subItem.label}</span>
+                        </span>
                         {subItem.hasError && (
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
                         )}

@@ -1,4 +1,4 @@
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, Firestore } from 'firebase/firestore';
 
 interface SeedUser {
   uid?: string;
@@ -21,9 +21,10 @@ interface SeedContact {
  * and relink historical contacts.
  */
 export const runSeedUDI = async (
-  db: any,
+  db: Firestore | any,
   user: SeedUser | null | undefined,
-  masterContacts: SeedContact[] = []
+  masterContacts: SeedContact[] = [],
+  silent = false
 ): Promise<void> => {
   if (!db) {
     throw new Error('Base de datos no inicializada.');
@@ -154,5 +155,7 @@ export const runSeedUDI = async (
     }
   }
 
-  alert(`Cuentas Semilla UDI / Green House creadas y sincronizadas.\n\n- Cuentas: ACC-001 (UDI), ACC-002 (Green House)\n- Contacto Maestro: CON-001 (Matias Peñaranda -> ACC-001)\n- Contactos Re-vinculados: ${relinkedCount}`);
+  if (!silent) {
+    alert(`Cuentas Semilla UDI / Green House creadas y sincronizadas.\n\n- Cuentas: ACC-001 (UDI), ACC-002 (Green House)\n- Contacto Maestro: CON-001 (Matias Peñaranda -> ACC-001)\n- Contactos Re-vinculados: ${relinkedCount}`);
+  }
 };

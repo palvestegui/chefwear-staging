@@ -1,4 +1,66 @@
 ## [Unreleased]
+### Restore Canonical Services & UDI and Safe Merge in Staging Maintenance (`StagingMaintenanceView.tsx`, `MaintenanceActionCard.tsx`)
+- **Canonical Services & UDI Restoration Button**:
+  - Imported `canonicalData` from `src/data/canonicalServicesAndUdi.json` containing the official, complete catalog of services, special presets (`UDI Especial`), and UDI item price matrices.
+  - Added dedicated maintenance card and action button **"RESTAURAR SERVICIOS Y UDI"** executing `setDoc(doc(firestore, "pricing", "global"), canonicalData, { merge: true })`.
+  - Configured inline two-step confirmation (`confirmingAction === 'services'`) with confirmation prompt `"⚠️ SÍ, RESTAURAR AHORA"`.
+- **Safe Reset with Merge Protection**:
+  - Updated `executeResetCatalog` to explicitly pass `{ merge: true }` to `setDoc(doc(firestore, "pricing", "global"), { garments: {}, catalog: [], version: 0, updatedAt: Date.now() }, { merge: true })`.
+  - Guaranteed that resetting the garment catalog will never inadvertently purge or destroy existing services, special presets, or UDI pricing rules.
+- **Rule 300 / 500 & Strict Type Safety**:
+  - Typed `MaintenanceActionKey = 'catalog' | 'services' | 'orders' | 'total'`.
+  - Maintained `StagingMaintenanceView.tsx` (288 lines) and `MaintenanceActionCard.tsx` (96 lines) strictly under the 300-line limit for logical/modular files.
+  - Zero `any` types and clean TypeScript compilation (`tsc --noEmit`).
+### Fix Staging Maintenance Buttons: Inline Two-Step Confirmation (`StagingMaintenanceView.tsx`, `MaintenanceActionCard.tsx`)
+- **Root Cause Diagnosis**:
+  - `window.confirm()` and `window.alert()` calls were blocked by browser iframe sandboxing in web previews, causing maintenance buttons (`handleResetCatalog`, `handlePurgeQuotesAndOrders`, `handleFactoryReset`) to fail silently before setting loading state or reaching Firestore.
+- **Inline Two-Step Confirmation System**:
+  - Completely purged all `window.confirm()` and `window.alert()` invocations across the maintenance panel.
+  - Implemented reactive `confirmingAction: 'catalog' | 'orders' | 'total' | null` state.
+  - Standard button click now reveals a high-visibility inline confirmation cluster ("⚠️ SÍ, VACIAR AHORA" / "Cancelar") without relying on browser dialogs.
+- **Execution Handlers & Dual Reset**:
+  - `executeResetCatalog`: Resets `pricing/global` to `{ garments: {}, catalog: [], version: 0, updatedAt: Date.now() }` and additionally cleans legacy `settings/pricing` if present.
+  - `executePurgeQuotesAndOrders`: Batched deletion of `quotes`, `orders`, `orderItems`, `orderModifiers`.
+  - `executeFactoryReset`: Full staging reset preserving protected seed accounts `ACC-000`, `ACC-001`, and `CON-001`, re-running `runSeedUDI(...)` immediately after.
+- **Feedback & Visual Polish**:
+  - Added dedicated inline feedback banner displaying `successMessage` at the top of the panel with emerald styling.
+- **Architecture & Rule 300 Compliance**:
+  - Extracted reusable `MaintenanceActionCard.tsx` (89 lines), bringing `StagingMaintenanceView.tsx` to 278 lines (<300 lines limit).
+  - 100% strict TypeScript types with zero `any`. Build compiles cleanly (`tsc --noEmit`).
+### Split "Tarifario Base" vs "Catálogo" Submenus & Staging Maintenance Catalog Reset Fix (`SettingsView.tsx`, `BasePricingTab.tsx`, `CatalogPricingTab.tsx`, `StagingMaintenanceView.tsx`, `SidebarNav.tsx`, `MainLayout.tsx`, `App.tsx`, `PricesView.tsx`)
+- **Removal of Redundant Top Tab Bar**:
+  - Removed top dual-tab pill switcher (`[ Catálogo Maestro | Tarifario Base (Taller) ]`) from `SettingsView.tsx`. Tab A and Tab E now render independently as distinct submenus.
+- **Dedicated Submenus**:
+  - **Submenu `TARIFARIO BASE` (Tab A)**: Displays strictly workshop patterns (Filipina, Delantal, Pantalón, Gorro, Camisas, Guardapolvos, Chamarras, Accesorios). Title banner: `TARIFARIO BASE DE TALLER` with garment count metric. Filter pills: `Todas`, `Filipinas`, `Mandiles`, `Pantalones`, `Gorros`, `Chamarras`, `Accesorios`. Filtered out all commercial catalog garments.
+  - **Submenu `CATÁLOGO` (Tab E)**: Displays strictly commercial collection garments from `catalogGarments`. Removed standard workshop garments fallback. Title banner: strictly `CATÁLOGO`. Filter pills: `Todas`, `Filipinas`, `Mandiles Botánica`, `Mandiles Especiales`, `Chamarras`.
+- **Repair of "Restablecer / Vaciar Catálogo" in `StagingMaintenanceView.tsx`**:
+  - Directly imported `db` from `../../../firebase`, resolving prop-drilling unresponsiveness.
+  - Implemented `handleResetCatalog` with explicit `window.confirm()`, dedicated `isResettingCatalog` loading state with `<Loader2 className="animate-spin" />`, overwriting `pricing/global` with `{ garments: {}, catalog: [], version: 0, updatedAt: Date.now() }`.
+  - Added success and error feedback with emerald toast `✓ Catálogo de precios vaciado con éxito` and `onNotify` callback.
+- **Routing & Navigation Alignment**:
+  - Updated `SidebarNav.tsx`, `App.tsx`, and `MainLayout.tsx` to cleanly route `activeTab === 'tarifario'`, `activeTab === 'catalogo'`, and `activeTab === 'mantenimiento'`, keeping `isAjustesActive` synchronized.
+- **Rule 300 / Rule 500 & Type Safety**:
+  - Replaced `any` in `PricesView.tsx` with `PriceReferenceProps['pricing']`.
+  - All files strictly adhere to Rule 300/500 line limits and compile cleanly with `tsc --noEmit`.
+### Dedicated "Mantenimiento" Submenu under Ajustes with Protected Seed Accounts (`src/components/views/settings/StagingMaintenanceView.tsx`, `src/components/layout/SidebarNav.tsx`, `src/components/views/SettingsView.tsx`, `src/components/layout/MainLayout.tsx`, `src/App.tsx`, `src/utils/crmSeedUtils.ts`)
+- **Navigation & Submenu Integration (`SidebarNav.tsx`, `MainLayout.tsx`, `App.tsx`, `SettingsView.tsx`)**:
+  - Added new `Mantenimiento` sub-navigation option with `Wrench` icon directly under `Roles & Usuarios` in `SidebarNav.tsx`.
+  - Updated `settingsTab` state union across `App.tsx`, `SidebarNav.tsx`, `MainLayout.tsx`, and `SettingsView.tsx` to support `'mantenimiento'`.
+  - Configured top-bar breadcrumb `Ajustes · Mantenimiento` in `MainLayout.tsx`.
+- **Staging Maintenance & Data Purging Component (`StagingMaintenanceView.tsx`)**:
+  - Engineered dark-themed maintenance panel (257 lines, adhering strictly to Rule 300 <300 lines limit).
+  - **Catálogo de Precios**: Implemented action button to reset and empty `pricing/global` Firestore document to `{ garments: {}, catalog: [], version: 0 }`.
+  - **Cotizaciones y Pedidos de Prueba**: Batched deletion of `quotes`, `orders`, `orderItems`, and `orderModifiers` in 400-document Firestore write batches.
+  - **Reinicio Completo (Factory Reset Staging)**: Comprehensive staging purge with **critical safeguards**:
+    - Strictly preserves core directory accounts `ACC-000` ("Cliente Particular") and `ACC-001` ("Universidad UDI") in `clientAccounts` and `accounts`.
+    - Strictly preserves core contact `CON-001` ("Matias Peñaranda") in `masterContacts`.
+    - Automatically invokes `runSeedUDI(db, user, [], true)` immediately post-purge to guarantee core accounts remain 100% active and healthy.
+- **Safety, Feedback & Compliance**:
+  - Every action requires explicit `window.confirm()` before executing.
+  - Buttons are disabled with animated `Loader2` spinners while async operations execute.
+  - Displays emerald toast on completion: `✓ Datos de staging purgados (ACC-000 y ACC-001 preservados)`.
+  - Zero `any` and 100% strict TypeScript types.
+
 ### Two-Column Master-Detail Consumers in Settings (`src/components/views/settings/CatalogPricingTab.tsx`, `src/components/views/settings/BasePricingTab.tsx`, `src/components/views/SettingsView.tsx`)
 - **Master-Detail Wiring in Settings**:
   - Wired `CatalogPricingTab.tsx` to `MasterDetailPricingView` with support for multi-fabric author collections (`Colección de Autor`) and fallback to standard garments (111 lines, < 300 lines limit).

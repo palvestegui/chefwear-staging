@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { AlertTriangle, X, CheckCircle2, BookOpen, Layers } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSettingsMutations } from '../../hooks/useSettingsMutations';
 import { BasePricingTab } from './settings/BasePricingTab';
@@ -8,7 +8,9 @@ import { SpecialPresetsTab } from './settings/SpecialPresetsTab';
 import { ServicesCatalogTab } from './settings/ServicesCatalogTab';
 import { DiscountRulesTab } from '../pricing/DiscountRulesTab';
 import { UsersManagementSection } from './settings/UsersManagementSection';
+import { StagingMaintenanceView } from './settings/StagingMaintenanceView';
 import { TierDiscountRules } from '../../types/pricing';
+import { Firestore } from 'firebase/firestore';
 
 export interface SettingsPricingInput {
   catalogGarments?: Record<string, CatalogGarmentRecord>;
@@ -25,8 +27,8 @@ export interface SettingsViewProps {
   db: unknown;
   isMigrationMode?: boolean;
   setIsMigrationMode?: (val: boolean) => void;
-  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad';
-  setSettingsTab?: (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad') => void;
+  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento';
+  setSettingsTab?: (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento') => void;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -38,7 +40,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   setSettingsTab
 }) => {
   const { userProfile, isSuperAdmin, isAdmin } = useAuth();
-  const [pricingSubView, setPricingSubView] = useState<'catalogo' | 'base'>('catalogo');
 
   const {
     activeSettingsTab, setActiveSettingsTab,
@@ -58,15 +59,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   } = useSettingsMutations(pricing, db, orders);
 
   useEffect(() => {
-    if (settingsTab === 'E') {
-      setActiveSettingsTab('A');
-      setPricingSubView('catalogo');
-    } else if (settingsTab && settingsTab !== 'seguridad' && settingsTab !== activeSettingsTab) {
-      setActiveSettingsTab(settingsTab as 'A' | 'B' | 'C' | 'D');
+    if (settingsTab && settingsTab !== 'seguridad' && settingsTab !== 'mantenimiento' && settingsTab !== activeSettingsTab) {
+      setActiveSettingsTab(settingsTab as 'A' | 'B' | 'C' | 'D' | 'E');
     }
   }, [settingsTab, activeSettingsTab, setActiveSettingsTab]);
 
-  const currentMainTab = settingsTab === 'seguridad' ? 'seguridad' : 'precios';
+  const currentMainTab = settingsTab === 'seguridad' 
+    ? 'seguridad' 
+    : settingsTab === 'mantenimiento' 
+      ? 'mantenimiento' 
+      : 'precios';
   const canEditPrices = isSuperAdmin || userProfile?.canEditPrices || isAdmin;
   const canManageRoles = isSuperAdmin || userProfile?.canManageRoles || isAdmin;
 
@@ -87,42 +89,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </div>
           )}
 
-          {/* Sub-selector para Tab A: Catálogo Maestro vs Tarifario Base */}
+          {/* Submenu TARIFARIO BASE (Tab A) */}
           {activeSettingsTab === 'A' && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-stone-800 pb-3">
-                <button
-                  type="button"
-                  onClick={() => setPricingSubView('catalogo')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all ${
-                    pricingSubView === 'catalogo'
-                      ? 'bg-amber-500 text-stone-950 font-black shadow-md'
-                      : 'bg-stone-900 border border-stone-800 text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  <BookOpen size={14} />
-                  <span>Catálogo Maestro</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPricingSubView('base')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold uppercase tracking-wider transition-all ${
-                    pricingSubView === 'base'
-                      ? 'bg-amber-500 text-stone-950 font-black shadow-md'
-                      : 'bg-stone-900 border border-stone-800 text-stone-400 hover:text-stone-200'
-                  }`}
-                >
-                  <Layers size={14} />
-                  <span>Tarifario Base (Taller)</span>
-                </button>
-              </div>
+            <BasePricingTab settingsForm={settingsForm} />
+          )}
 
-              {pricingSubView === 'catalogo' ? (
-                <CatalogPricingTab pricing={pricing} />
-              ) : (
-                <BasePricingTab settingsForm={settingsForm} />
-              )}
-            </div>
+          {/* Submenu CATÁLOGO (Tab E) */}
+          {activeSettingsTab === 'E' && (
+            <CatalogPricingTab pricing={pricing} />
           )}
 
           {activeSettingsTab === 'B' && (
@@ -211,6 +185,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <UsersManagementSection
           allUsers={allUsers}
           db={db}
+        />
+      )}
+
+      {/* Bloque 3: Mantenimiento y Purga de Datos (Staging) */}
+      {currentMainTab === 'mantenimiento' && (canManageRoles || isSuperAdmin || isAdmin) && (
+        <StagingMaintenanceView
+          db={db as Firestore}
         />
       )}
     </div>

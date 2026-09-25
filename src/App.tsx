@@ -44,7 +44,7 @@ export const App: React.FC = () => {
   const { clientAccounts, masterContacts, orders, sizeTables: garmentSizeTablesFromDb, usersList: allUsers, pricing, isLoading: dataLoading } = useData();
 
   const [activeTab, setActiveTab] = useState('ventas');
-  const [settingsTab, setSettingsTab] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad'>('A');
+  const [settingsTab, setSettingsTab] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad' | 'mantenimiento'>('A');
 
   // Role-based landing tab router (runs strictly once upon initial authenticated load)
   const hasSetInitialLandingTab = useRef(false);
@@ -276,7 +276,7 @@ export const App: React.FC = () => {
         />
       )}
 
-      {activeTab === 'ajustes' && isApproved && userProfile?.role !== 'VENTAS' && pricing && (
+      {(activeTab === 'ajustes' || activeTab === 'tarifario' || activeTab === 'catalogo' || activeTab === 'mantenimiento') && isApproved && userProfile?.role !== 'VENTAS' && pricing && (
         <SettingsView
           pricing={pricing}
           orders={orders}
@@ -284,7 +284,12 @@ export const App: React.FC = () => {
           db={db}
           isMigrationMode={isMigrationMode}
           setIsMigrationMode={setIsMigrationMode}
-          settingsTab={settingsTab}
+          settingsTab={
+            activeTab === 'tarifario' ? 'A' :
+            activeTab === 'catalogo' ? 'E' :
+            activeTab === 'mantenimiento' ? 'mantenimiento' :
+            settingsTab
+          }
           setSettingsTab={setSettingsTab}
         />
       )}

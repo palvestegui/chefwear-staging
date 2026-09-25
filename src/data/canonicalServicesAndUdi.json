@@ -1,0 +1,518 @@
+{
+  "specialPresets": {
+    "UDI Especial": {
+      "Filipina con logo UDI en el pecho y banderas en el cuello": {
+        "Drill de 8oz": 253
+      },
+      "Gorro con logo UDI en la frente": {
+        "Drill de 8oz": 35
+      },
+      "Mandil con logo UDI en el bolsillo del pecho": {
+        "Tornado (Bull Denim)": 149
+      },
+      "Pantalón con 1 bolsillo cargo y logo UDI en la pierna": {
+        "Drill de 8oz": 190
+      }
+    }
+  },
+  "udiPricing": {
+    "Filipina con logo UDI en el pecho y banderas en el cuello": {
+      "Drill de 8oz": 253
+    },
+    "Gorro con logo UDI en la frente": {
+      "Drill de 8oz": 35
+    },
+    "Mandil con logo UDI en el bolsillo del pecho": {
+      "Tornado (Bull Denim)": 149
+    },
+    "Pantalón con 1 bolsillo cargo y logo UDI en la pierna": {
+      "Drill de 8oz": 190
+    }
+  },
+  "specialPresetServices": {
+    "UDI Especial": {
+      "Filipina con logo UDI en el pecho y banderas en el cuello": [
+        "Nombre en el Bolsillo"
+      ],
+      "Mandil con logo UDI en el bolsillo del pecho": [
+        "Correas cruzadas"
+      ]
+    }
+  },
+  "services": [
+    {
+      "appliesToSpecial": {
+        "UDI Especial": []
+      },
+      "appliesToStandard": [
+        "Chamarra Ecuestre personalizada",
+        "Chamarra Aventurera",
+        "Mandil",
+        "Gorro",
+        "Filipina",
+        "Pantalón",
+        "Camisa de servicio (mesas)"
+      ],
+      "exclusionGroup": "",
+      "garment": "Chamarra Ecuestre personalizada",
+      "isGlobal": false,
+      "name": "Logo Bordado",
+      "price": 240,
+      "type": "Escala de Volumen (Logos)"
+    },
+    {
+      "exclusionGroup": "tiros",
+      "garment": "Mandil",
+      "name": "Correas Sencillas (estándar)",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Mandil con logo UDI en el bolsillo del pecho"
+        ]
+      },
+      "appliesToStandard": [
+        "Mandil"
+      ],
+      "exclusionGroup": "tiros",
+      "garment": "Mandil",
+      "isGlobal": false,
+      "name": "Correas Cruzadas ",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": []
+      },
+      "appliesToStandard": [
+        "Mandil"
+      ],
+      "exclusionGroup": "regulador",
+      "garment": "Mandil",
+      "isGlobal": false,
+      "name": "Correas cruzadas con distribuidor de cuero",
+      "price": 25,
+      "type": "Costo Adicional"
+    },
+    {
+      "exclusionGroup": "regulador",
+      "garment": "Mandil",
+      "name": "Correas cruzadas con distribuidor de argolla metálica",
+      "price": 15,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Mandil",
+      "name": "Mosquetones metálicos",
+      "price": 7,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Mandil",
+      "name": "Ojales metálicos",
+      "price": 12,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Mandil",
+      "name": "Reguladores metálicos para correas",
+      "price": 8,
+      "type": "Costo Adicional"
+    },
+    {
+      "appliesToSpecial": {},
+      "appliesToStandard": [
+        "Mandil",
+        "Filipina",
+        "Pantalón",
+        "Chamarra Aventurera",
+        "Chamarra Ecuestre personalizada"
+      ],
+      "garment": "Mandil",
+      "isGlobal": false,
+      "name": "Bolsillos personalizados",
+      "price": 12,
+      "type": "Costo Adicional Editable"
+    },
+    {
+      "garment": "Mandil",
+      "name": "Imán dentro del bolsillo del pecho",
+      "price": 6,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Mandil",
+      "name": "Remaches metálicos",
+      "price": 2,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Mandil",
+      "name": "Refuerzos de cuero",
+      "price": 10,
+      "type": "Costo Adicional"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Filipina con logo UDI en el pecho y banderas en el cuello"
+        ]
+      },
+      "appliesToStandard": [
+        "Filipina",
+        "Camisa de servicio (mesas)"
+      ],
+      "exclusionGroup": "manga",
+      "garment": "Filipina",
+      "isGlobal": false,
+      "name": "Manga larga",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Filipina con logo UDI en el pecho y banderas en el cuello"
+        ]
+      },
+      "appliesToStandard": [
+        "Filipina",
+        "Camisa de servicio (mesas)"
+      ],
+      "exclusionGroup": "manga",
+      "garment": "Filipina",
+      "isGlobal": false,
+      "name": "Manga 3/4",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Filipina con logo UDI en el pecho y banderas en el cuello"
+        ]
+      },
+      "appliesToStandard": [
+        "Filipina",
+        "Camisa de servicio (mesas)"
+      ],
+      "exclusionGroup": "manga",
+      "garment": "Filipina",
+      "isGlobal": false,
+      "name": "Manga corta",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "exclusionGroup": "cuello",
+      "garment": "Filipina",
+      "name": "Cuello recto / alto",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "exclusionGroup": "cuello",
+      "garment": "Filipina",
+      "name": "Cuello redondo",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {},
+      "appliesToStandard": [
+        "Filipina",
+        "Pantalón"
+      ],
+      "exclusionGroup": "tela deportiva",
+      "garment": "Filipina",
+      "isGlobal": false,
+      "name": "Aplicaciones de tela deportiva (Costados)",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "exclusionGroup": "tela deportiva",
+      "garment": "Filipina",
+      "name": "Aplicaciones de tela deportiva (Espalda)",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "exclusionGroup": "tela deportiva",
+      "garment": "Filipina",
+      "name": "Aplicaciones de tela deportiva (Ambos: Costados y Espalda)",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "exclusionGroup": "botones",
+      "garment": "Filipina",
+      "name": "Botones visibles",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "exclusionGroup": "botones",
+      "garment": "Filipina",
+      "name": "Botones ocultos / invisibles",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "garment": "Filipina",
+      "name": "Cierre (cremallera)",
+      "price": 8,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Filipina",
+      "name": "Broches metálicos ocultos",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "exclusionGroup": "botones",
+      "garment": "Filipina",
+      "name": "Otros: Botones de nudo tradicionales (Botones japoneses)",
+      "price": 15,
+      "type": "Costo Adicional Editable"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Filipina con logo UDI en el pecho y banderas en el cuello"
+        ]
+      },
+      "appliesToStandard": [
+        "Mandil",
+        "Filipina"
+      ],
+      "garment": "Mandil",
+      "isGlobal": false,
+      "name": "Nombre en el bolsillo",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Pantalón con 1 bolsillo cargo y logo UDI en la pierna"
+        ]
+      },
+      "appliesToStandard": [
+        "Pantalón"
+      ],
+      "exclusionGroup": "corte",
+      "garment": "Pantalón",
+      "isGlobal": false,
+      "name": "Corte estándar",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "exclusionGroup": "corte",
+      "garment": "Pantalón",
+      "name": "Tipo Jogger",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Pantalón con 1 bolsillo cargo y logo UDI en la pierna"
+        ]
+      },
+      "appliesToStandard": [
+        "Pantalón"
+      ],
+      "exclusionGroup": "corte",
+      "garment": "Pantalón",
+      "isGlobal": false,
+      "name": "Con cierre y botón",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {},
+      "appliesToStandard": [
+        "Pantalón",
+        "Chamarra Ecuestre personalizada",
+        "Chamarra Aventurera",
+        "Mandil",
+        "Filipina"
+      ],
+      "garment": "Pantalón",
+      "isGlobal": false,
+      "name": "Bolsillos personalizados",
+      "price": 15,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Pantalón",
+      "name": "Aplicaciones de tela deportiva",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Gorro con logo UDI en la frente"
+        ]
+      },
+      "appliesToStandard": [
+        "Gorro"
+      ],
+      "exclusionGroup": "tipo",
+      "garment": "Gorro",
+      "isGlobal": false,
+      "name": "Tipo Hongo",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Gorro con logo UDI en la frente"
+        ]
+      },
+      "appliesToStandard": [
+        "Gorro"
+      ],
+      "exclusionGroup": "tipo",
+      "garment": "Gorro",
+      "isGlobal": false,
+      "name": "Tipo Bandana",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {
+        "UDI Especial": [
+          "Gorro con logo UDI en la frente"
+        ]
+      },
+      "appliesToStandard": [
+        "Gorro"
+      ],
+      "exclusionGroup": "tipo",
+      "garment": "Gorro",
+      "isGlobal": false,
+      "name": "Tipo Cofia",
+      "price": 0,
+      "type": "Opción de Confección"
+    },
+    {
+      "appliesToSpecial": {},
+      "appliesToStandard": [
+        "Filipina",
+        "Chamarra Ecuestre personalizada",
+        "Chamarra Aventurera",
+        "Camisa de servicio (mesas)"
+      ],
+      "garment": "Filipina",
+      "isGlobal": false,
+      "name": "LOGO EN LA ESPALDA",
+      "price": 70,
+      "type": "Escala de Volumen (Logos)"
+    },
+    {
+      "garment": "Filipina",
+      "name": "BANDERITAS EN EL CUELLO",
+      "price": 15,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Cierre Impermeable",
+      "price": 15,
+      "type": "Costo Adicional"
+    },
+    {
+      "appliesToSpecial": {},
+      "appliesToStandard": [
+        "Chamarra Aventurera",
+        "Mandil"
+      ],
+      "garment": "Chamarra Aventurera",
+      "isGlobal": false,
+      "name": "Remaches metálicos",
+      "price": 8,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Cierre matálico",
+      "price": 10,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Bolsillo con cierre",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Refuerzos en los codos",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Puños Reforzados",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Bandas reflectivas",
+      "price": 10,
+      "type": "Costo Adicional Editable"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Elástico en la cintura",
+      "price": 10,
+      "type": "Costo Adicional Editable"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Refuerzo Dobladillo",
+      "price": 20,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Capucha desmontable",
+      "price": 30,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Bolsillos oculto",
+      "price": 20,
+      "type": "Costo Adicional Editable"
+    },
+    {
+      "garment": "Chamarra Aventurera",
+      "name": "Chaleco de frisa",
+      "price": 60,
+      "type": "Costo Adicional Editable"
+    },
+    {
+      "garment": "Chamarra Ecuestre personalizada",
+      "name": "Capa",
+      "price": 100,
+      "type": "Costo Adicional"
+    },
+    {
+      "garment": "Chamarra Ecuestre personalizada",
+      "name": "Herrajes",
+      "price": 100,
+      "type": "Costo Adicional"
+    }
+  ]
+}
