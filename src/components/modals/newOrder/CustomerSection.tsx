@@ -10,6 +10,7 @@ import {
   cleanStr, 
   cleanPhone 
 } from '../../../utils/contactResolution';
+import { DEFAULT_FALLBACK_ACCOUNT } from '../../../utils/pricingDefaults';
 import { ChevronDown, Users, Sparkles } from 'lucide-react';
 
 export { resolveContactDetails };
@@ -43,6 +44,9 @@ export const CustomerSection: React.FC<CustomerSectionProps> = ({
 }) => {
   const { isSuperAdmin: authIsSuperAdmin } = useAuth();
   const isSuperAdminEffective = isSuperAdmin !== undefined ? isSuperAdmin : Boolean(authIsSuperAdmin);
+  const effectiveAccounts = (clientAccounts && clientAccounts.length > 0)
+    ? clientAccounts
+    : [DEFAULT_FALLBACK_ACCOUNT];
   const isCorporateAccount = newOrder.clientType !== 'Particular / Individuo' || (newOrder.accountId && newOrder.accountId !== 'ACC-000');
   const rosterCount = (newOrder.institutionalRoster || []).length;
   const isInstitutional = Boolean(newOrder.isInstitutional);
@@ -118,7 +122,7 @@ export const CustomerSection: React.FC<CustomerSectionProps> = ({
                   const query = cleanStr(newOrder.customer || "");
                   const exactMatch = directoryContacts.find(c => cleanStr(c.fullName || `${c.contactNombre || ''} ${c.contactApellido || ''}`) === query);
                   if (exactMatch) {
-                    const resolved = resolveContactDetails(exactMatch, accountContacts, clientAccounts, orders);
+                    const resolved = resolveContactDetails(exactMatch, accountContacts, effectiveAccounts, orders);
                     setNewOrder(prev => ({ ...prev, ...resolved }));
                   }
                 }
@@ -141,7 +145,7 @@ export const CustomerSection: React.FC<CustomerSectionProps> = ({
                 <div className="absolute left-0 right-0 top-full mt-1 bg-stone-900 border border-stone-700 rounded-2xl shadow-2xl z-50 max-h-60 overflow-y-auto p-2">
                   <div className="text-[8px] font-black uppercase tracking-widest text-amber-500 px-2 py-1 mb-1">Contactos Encontrados ({matches.length})</div>
                   {matches.map(c => {
-                    const resolved = resolveContactDetails(c, accountContacts, clientAccounts, orders);
+                    const resolved = resolveContactDetails(c, accountContacts, effectiveAccounts, orders);
                     return (
                       <div
                         key={c.contactId || c.id}
@@ -244,13 +248,13 @@ export const CustomerSection: React.FC<CustomerSectionProps> = ({
               <div>
                 <label className="text-[8px] font-black text-amber-500 uppercase tracking-widest block mb-1">Entidad / Empresa (Cuenta Padre)</label>
                 {(() => {
-                  const filtered = clientAccounts.filter(a => normalizeAccountType(a.accountType) === normalizeAccountType(newOrder.clientType));
+                  const filtered = effectiveAccounts.filter(a => normalizeAccountType(a.accountType || a.category) === normalizeAccountType(newOrder.clientType));
                   // Preserve explicitly selected account if not currently in category filter
-                  const currentAccount = clientAccounts.find(a => a.accountId === newOrder.accountId);
-                  const options = currentAccount && !filtered.some(a => a.accountId === currentAccount.accountId)
+                  const currentAccount = effectiveAccounts.find(a => (a.accountId || a.id) === newOrder.accountId);
+                  const options = currentAccount && !filtered.some(a => (a.accountId || a.id) === (currentAccount.accountId || currentAccount.id))
                     ? [currentAccount, ...filtered]
                     : filtered;
-                  const isExistingAccount = options.some(a => a.accountId === newOrder.accountId);
+                  const isExistingAccount = options.some(a => (a.accountId || a.id) === newOrder.accountId);
                   const selectValue = isExistingAccount ? newOrder.accountId : 'create_new';
 
                   return (
@@ -261,12 +265,12 @@ export const CustomerSection: React.FC<CustomerSectionProps> = ({
                         if (val === "create_new") {
                           setNewOrder(prev => ({ ...prev, accountId: 'create_new', companyName: '', pricingTier: 'Estándar Raleo' }));
                         } else {
-                          const matched = clientAccounts.find(a => a.accountId === val);
+                          const matched = effectiveAccounts.find(a => (a.accountId || a.id) === val);
                           if (matched) {
                             setNewOrder(prev => ({ 
                               ...prev, 
-                              accountId: matched.accountId, 
-                              companyName: matched.accountName, 
+                              accountId: matched.accountId || matched.id, 
+                              companyName: matched.accountName || matched.name, 
                               pricingTier: matched.pricingTier || 'Estándar Raleo' 
                             }));
                           }
@@ -279,11 +283,15 @@ export const CustomerSection: React.FC<CustomerSectionProps> = ({
                       ) : (
                         <>
                           <option value="create_new">+ Crear nueva empresa</option>
-                          {options.map(a => (
-                            <option key={a.accountId} value={a.accountId}>
-                              {a.accountId} — {a.accountName}
-                            </option>
-                          ))}
+                          {options.map(a => {
+                            const accId = a.accountId || a.id;
+                            const accName = a.accountName || a.name;
+                            return (
+                              <option key={accId} value={accId}>
+                                {accId} — {accName}
+                              </option>
+                            );
+                          })}
                         </>
                       )}
                     </select>

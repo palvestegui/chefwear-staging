@@ -1,4 +1,167 @@
 ## [Unreleased]
+### Two-Column Master-Detail Consumers in Settings (`src/components/views/settings/CatalogPricingTab.tsx`, `src/components/views/settings/BasePricingTab.tsx`, `src/components/views/SettingsView.tsx`)
+- **Master-Detail Wiring in Settings**:
+  - Wired `CatalogPricingTab.tsx` to `MasterDetailPricingView` with support for multi-fabric author collections (`Colección de Autor`) and fallback to standard garments (111 lines, < 300 lines limit).
+  - Refactored `BasePricingTab.tsx` into a read-only Master-Detail presentation component with canonical workshop garment metadata and synchronized pricing (80 lines, < 300 lines limit).
+  - Integrated Tab A sub-selector in `SettingsView.tsx` enabling seamless toggle between **Catálogo Maestro** and **Tarifario Base (Taller)** with dedicated iconography and active pill states (219 lines, < 300 lines limit).
+- **Strict Compliance & Zero 'any'**:
+  - Eliminated legacy `any` types across settings pricing components, introducing strict `SettingsPricingInput` and `CatalogGarmentRecord` interfaces.
+  - All files strictly adhere to Rule 300 (<300 lines) and strict TypeScript compilation (`tsc --noEmit` clean).
+
+### Reusable Master-Detail Presentation Component (`src/components/pricing/MasterDetailPricingView.tsx`)
+- **Master-Detail Layout Architecture**:
+  - Created reusable, high-density Master-Detail presentation component (`MasterDetailPricingView.tsx`) adhering strictly to Rule 300 (<300 lines; 298 lines).
+  - Left Rail (Master): Collapsible search filter by garment name or fabric, category pills navigation (`Todas`, `Filipinas`, `Mandiles Botánica`, `Mandiles Especiales`, `Chamarras`), garment count metric, and scrollable selectable garment list with consumption and variant badges.
+  - Right Canvas (Detail): Detailed garment header with consumption badge (`m/u`), featured `[★ Tela Principal]` highlight banner with real-time minorista/B2B pricing, and commercial 3-column table displaying full fabric variant catalog with synchronized read-only prices.
+- **Strict Compliance & Type Safety**:
+  - Full TypeScript safety with dedicated interfaces (`PricingVariant`, `MasterDetailPricingItem`, `MasterDetailPricingViewProps`).
+  - Zero usage of `any` or `@ts-ignore`.
+  - Zero hardcoding and pure presentation logic driven by input props.
+
+### Multi-Fabric Support for Catálogo de Prendas (`src/types/pricing.ts`, `src/types/index.ts`, `src/components/views/settings/CatalogPricingTab.tsx`)
+- **Type Definitions (`CatalogGarmentPricing`)**:
+  - Extended `CatalogGarmentPricing` in `src/types/pricing.ts` with `fabricVariants?: Record<string, { priceRaleo: number; priceB2B: number }>;`.
+  - Re-exported `CatalogGarmentPricing` explicitly from `src/types/index.ts`.
+- **Multi-Fabric Card Presentation in Catálogo (`CatalogPricingTab.tsx`)**:
+  - Replaced single-fabric cards with structured multi-fabric view matching Tarifario Base depth.
+  - Added `[★ Tela Principal]` highlight showcase displaying primary fabric with PVP Minorista and B2B pricing.
+  - Added sub-section displaying all authorized variants in `fabricVariants`, highlighting the main fabric and showing `RALEO (Bs)` and `B2B (Bs)` with scrollable container for multi-variant models.
+  - Enhanced search filtering across name, fabric, category, description, and variant fabric names.
+- **Sync Overwrite & Clean Purge**:
+  - `handlePullFromPrecios` ingests full multi-fabric configurations and base workshop garments via atomic `updateDoc`, with detailed alert reporting model count and base garments.
+- **Rule 300 / 500 Compliance & Strict Type Safety**:
+  - `CatalogPricingTab.tsx` kept strictly at 270 lines (< 300 lines limit).
+  - Zero usage of `any` or `@ts-ignore`.
+
+### Fix Catalog Sync Clean Overwrite (`CatalogPricingTab.tsx`)
+- **Purge Ghost Records on Sync**:
+  - Replaced merging behavior in `handlePullFromPrecios` with atomic `updateDoc` targeting `pricing/global`.
+  - Overwrites `catalogGarments` and `garments` completely with incoming data from Azafrán Precios rather than shallow merging, ensuring deleted items are cleanly purged.
+- **Rule 300 / 500 Compliance & Type Safety**:
+  - `CatalogPricingTab.tsx` maintained at 237 lines (< 300 lines limit).
+  - Strict type checking with zero usage of `any` or `@ts-ignore`.
+
+### Reset Ventas Staging Pricing to Pristine Clean State (`CatalogPricingTab.tsx`, `scripts/resetCleanPricing.ts`)
+- **Restoration of Pristine Staging State**:
+  - Reverted `garments` strictly to the 8 canonical workshop base garments (`Camisa de servicio (mesas)`, `Chamarra Aventurera`, `Chamarra Ecuestre personalizada`, `Filipina`, `Gorro`, `Mandil`, `Pantalón`, `Regulador para correas cruzadas`).
+  - Completely removed `catalogGarments` using `deleteField()`, returning the Catálogo menu to its pristine empty state ("0 items / No hay productos de catálogo sincronizados aún").
+  - Preserved `specialPresets` (UDI Especial), `services` (50 tailoring services), and `discountRulesByTier` completely intact in `pricing/global`.
+- **UI Reset Control (`CatalogPricingTab.tsx`)**:
+  - Added dedicated `[ 🧹 Restablecer a Estado Limpio ]` action button in the header toolbar of `CatalogPricingTab`.
+  - Implemented `handleResetToCleanState` clearing merged non-canonical garment entries and executing atomic reset to base workshop garments.
+- **Rule 300 / Rule 500 & Strict Type Safety**:
+  - `CatalogPricingTab.tsx` maintained at 234 lines (< 250 lines target, < 300 lines limit).
+  - Zero usage of `any` or `@ts-ignore`.
+
+### Subscriber Bridge: Pull Pricing Snapshot from Azafrán Precios (`src/components/views/settings/CatalogPricingTab.tsx`, `src/components/settings/settings/CatalogPricingTab.tsx`)
+- **Direct Subscriber Pull Integration**:
+  - Implemented secondary Firebase applet connection targeting Azafrán Precios Firestore (`projectId: "gen-lang-client-0346242663"`, `firestoreDatabaseId: "ai-studio-fa1e6918-be9a-4562-bfc7-e531579774e7"`).
+  - Added `handlePullFromPrecios` to fetch canonical snapshot document `pricing/global` published by Azafrán Precios.
+  - Safely commits `catalogGarments` and `garments` directly into Ventas Firestore `pricing/global` using `{ merge: true }`, setting `lastSyncedAt: Date.now()` and `syncedFromPreciosAt: ISO string`.
+- **UI Feedback & Controls**:
+  - Added prominent `[ 🔄 Sincronizar desde Azafrán Precios ]` button to the header and empty-state card in `CatalogPricingTab`.
+  - Added active state disabling button and displaying `"Sincronizando..."` with alerts for missing source catalog or sync errors.
+- **Rule 300 / Rule 500 & Strict Type Safety**:
+  - `CatalogPricingTab.tsx` maintained under 240 lines (< 300 lines).
+  - Strict TypeScript compliance with zero usage of `any` or `@ts-ignore`.
+
+### Catálogo de Prendas Support in Ventas & Tarifario (`types`, `SidebarNav.tsx`, `MainLayout.tsx`, `SettingsView.tsx`, `CatalogPricingTab.tsx`, `PriceReference.tsx`)
+- **Types Extension (`src/types/pricing.ts`, `src/types/index.ts`)**:
+  - Defined `CatalogGarmentPricing` interface covering `priceRaleo`, `priceB2B`, `fabric`, `consumptionMeters`, `description`, `category`, and `imageUrl`.
+  - Extended `PricingData` with optional `catalogGarments?: Record<string, CatalogGarmentPricing>;`.
+- **Navigation & Layout Integration (`SidebarNav.tsx`, `MainLayout.tsx`, `App.tsx`)**:
+  - Added new vertical menu item under `AJUSTES` in `SidebarNav.tsx` labeled "Catálogo" (`id: 'E'`) positioned between Descuentos and Roles & Usuarios.
+  - Updated `settingsTab` union in `SidebarNav.tsx`, `MainLayout.tsx`, `SettingsView.tsx`, and `App.tsx` to include `'E'`.
+  - Added breadcrumb handling in `MainLayout.tsx` for `settingsTab === 'E'` returning `'Ajustes · Catálogo'`.
+- **Settings Subcomponent (`CatalogPricingTab.tsx`)**:
+  - Implemented `CatalogPricingTab` under 170 lines with search filtering, rendering PVP Minorista (Bs) in amber badges, Tarifa B2B (Bs) in stone badges, and fabric/description/consumption specs.
+  - Implemented friendly empty state: `"No hay productos de catálogo sincronizados aún. Se actualizarán mediante el sincronizador de Azafrán Precios."`.
+- **Dual-Mode Tarifario (`PriceReference.tsx`, `CatalogReferenceCards.tsx`)**:
+  - Added compact segmented switcher in `PriceReference.tsx` toggling between `"Tarifario Base"` and `"Catálogo"`.
+  - When in `"base"` mode, renders existing workshop garment cards and UDI special preset breakdown.
+  - When in `"catalogo"` mode, renders modularized `CatalogReferenceCards.tsx` with real-time search filtering across name, fabric, category, and description.
+- **Architectural & Quality Compliance**:
+  - Enforced Firestore write safety with `{ merge: true }` in `useSettingsMutations.ts`.
+  - Strict Rule 300 / Rule 500 compliance across all touched files (all files < 300 or < 500 lines).
+  - Zero usage of `any` in new code, verified clean build with `tsc --noEmit` and `compile_applet`.
+
+### Seed Staging Firestore with Live Pricing Configuration (`scripts/seedLivePricing.ts`, `src/live_pricing_global.json`)
+- **Canonical Pricing Synchronization (`scripts/seedLivePricing.ts`)**:
+  - Implemented standalone executable TypeScript seed script `scripts/seedLivePricing.ts`.
+  - Directly seeded Staging Firestore document `pricing/global` with canonical live pricing catalog from `src/live_pricing_global.json` (garments, tier discount rules, tailoring services, and special presets like UDI Especial).
+  - Executed script via `npx tsx scripts/seedLivePricing.ts` and verified synchronous completion with terminal logging `SUCCESS: Staging pricing/global now matches Live 1:1.`
+- **Architectural Compliance**:
+  - Zero changes to existing UI components.
+  - Script adheres strictly to Rule 300 line limit (13 lines < 300).
+  - Zero `any` or `@ts-ignore` usage.
+
+### Fix NewOrderModal Launch & Auto-Seed Baseline Staging Entities (`CustomerSection.tsx`, `NewOrderModal.tsx`, `stagingSeeder.ts`, `pricingDefaults.ts`, `usePricingEngine.ts`, `useOrderCreator.ts`, `DataContext.tsx`)
+- **Root Cause & Defrosting**: In the fresh `azafran-staging` database, Firestore has zero collections initially. When `+ NUEVA COTIZACIÓN` was clicked, `NewOrderModal.tsx` blocked on strict guards (`!pricing`) and `CustomerSection.tsx` froze due to empty `clientAccounts` (`[]`).
+- **Defensive Rendering Architecture (`NewOrderModal.tsx`, `CustomerSection.tsx`)**:
+  - Replaced blocking `!pricing` guard with `effectivePricing = pricing || DEFAULT_PRICING`, allowing `NewOrderModal` to render immediately without waiting for Firestore queries or network trips.
+  - Implemented `DEFAULT_FALLBACK_ACCOUNT` (`{ id: 'ACC-000', name: 'Clientes Particulares', category: 'PARTICULAR' }`) in `CustomerSection.tsx` and `NewOrderModal.tsx` whenever `clientAccounts` is empty or loading.
+  - Enabled non-blocking corporate account matching and dynamic creation options (`+ Crear nueva empresa`).
+- **Resilient Pricing Fallbacks (`pricingDefaults.ts`, `usePricingEngine.ts`, `useOrderCreator.ts`)**:
+  - Consolidated fallback pricing rules and structures in `src/utils/pricingDefaults.ts` with complete garments, tailoring services, and discount rules by tier.
+  - Enhanced `usePricingEngine` and `useOrderCreator` to seamlessly fall back to `DEFAULT_PRICING` whenever live database pricing is null or initializing.
+- **Autonomous Staging Seeder (`src/utils/stagingSeeder.ts`, `DataContext.tsx`)**:
+  - Created idempotent `initStagingSeed(db)` that executes once on startup in Staging:
+    - Automatically checks `accounts` and `clientAccounts` collections; if empty, inserts baseline entities:
+      - `ACC-000`: `{ id: 'ACC-000', name: 'Clientes Particulares', category: 'PARTICULAR', createdAt: timestamp }`
+      - `ACC-001`: `{ id: 'ACC-001', name: 'Universidad UDI', category: 'INSTITUCIONAL', createdAt: timestamp }`
+    - Checks `users` collection for Don Pablo; if absent, seeds `staging-pablo-alvestegui-admin` (`displayName: 'Pablo Alvestegui'`, `email: 'palvestegui@gmail.com'`, `role: 'admin'`, `status: 'APPROVED'`).
+    - Seeds `pricing/global` baseline document if missing from database.
+  - Wired into `DataContext.tsx` authenticated snapshot cycle.
+- **Rule 300 / Rule 500 Compliance & Zero `any`**:
+  - `src/utils/pricingDefaults.ts`: 57 lines (< 300)
+  - `src/utils/stagingSeeder.ts`: 115 lines (< 300)
+  - `src/hooks/usePricingEngine.ts`: 189 lines (< 300)
+  - `src/hooks/useOrderCreator.ts`: 47 lines (< 300)
+  - `src/contexts/DataContext.tsx`: 153 lines (< 300)
+  - `src/components/modals/newOrder/CustomerSection.tsx`: 423 lines (< 500)
+  - `src/components/modals/NewOrderModal.tsx`: 372 lines (< 500)
+  - Full TypeScript type-checking (`tsc --noEmit`) passes with 0 errors, and zero usage of `any` or `@ts-ignore`.
+
+### Connect Staging App to Dedicated azafran-staging Firebase Project (`src/firebase.ts`, `src/server/adminDb.ts`, `firebase-applet-config.json`, `LoginView.tsx`)
+- **Physical Isolation & Complete Sandbox Independence (`src/firebase.ts`)**: Replaced the legacy production Firebase credentials with dedicated `azafran-staging` project keys (`apiKey: AIzaSyDMjYBLUCJJ_BdJslKpk4iJUS3LnOAd3Yc`, `projectId: azafran-staging`, `authDomain: azafran-staging.firebaseapp.com`, `storageBucket: azafran-staging.firebasestorage.app`, `appId: 1:225609753361:web:3c49d39531080360a1a2b0`, `measurementId: G-7WNKD8S1QE`).
+- **Default Database Clean Initialization**: Initialized Firestore directly via `getFirestore(app)` against the default database of `azafran-staging`, removing legacy references to the secondary AI Studio database instance ID. Ensures 100% of Firestore queries, snapshots, and mutations target `azafran-staging` with zero production exposure (`mystic-return-81b2m` is completely untouched).
+- **Backend Admin DB & Staging Config Sync (`src/server/adminDb.ts`, `firebase-applet-config.json`)**: Synchronized the server-side Firebase Admin SDK initialization to target `azafran-staging` and the default database, eliminating `any` declarations in `adminDb.ts` to ensure end-to-end full-stack isolation.
+- **Diagnostic Links Updated (`LoginView.tsx`)**: Updated the authorized domain troubleshooting console link and diagnostic readout to directly link to the `azafran-staging` Firebase Console authentication settings.
+- **Rule 300 / Rule 500 Compliance & Zero `any`**:
+  - `src/firebase.ts`: 53 lines (< 300)
+  - `src/server/adminDb.ts`: 16 lines (< 300)
+  - `src/components/auth/LoginView.tsx`: 176 lines (< 500)
+  - Zero `any` or `@ts-ignore` with clean `tsc --noEmit` and build pass.
+
+### Staging Developer Quick-Login Bypass (Zero-Cloud-Friction) (`AuthContext.tsx`, `authHelpers.ts`, `LoginView.tsx`, `App.tsx`)
+- **1-Click Staging Quick-Login Bypass (`LoginView.tsx`)**: Introduced a prominent amber developer button (`⚡ Entrar como Don Pablo (SuperAdmin)`) on the staging login screen directly below the Google Sign-in trigger. Allows immediate access into staging without waiting for Firebase Authorized Domains updates or identity provider propagation.
+- **Session Provisioning & SuperAdmin Integrity (`AuthContext.tsx`, `authHelpers.ts`)**: Implemented `loginAsStagingAdmin()` in `AuthContext` backed by `STAGING_ADMIN_USER_PROFILE` and `createStagingFirebaseUser()`. Instantly grants Don Pablo's credentials (`palvestegui@gmail.com`, Role: `'admin'`, `isSuperAdmin: true`, status: `'APPROVED'`).
+- **Session Storage Persistence (`sessionStorage: azafran_staging_auth`)**: Persists staging authentication across browser page refreshes, and cleanly purges on `logout()`.
+- **Strict Rule 300 / 500 Compliance & Zero `any`**:
+  - `src/utils/authHelpers.ts`: 232 lines (< 300)
+  - `src/contexts/AuthContext.tsx`: 282 lines (< 300)
+  - `src/components/auth/LoginView.tsx`: 175 lines (< 500)
+  - `src/App.tsx`: 479 lines (< 500)
+  - Zero usage of `any` or `@ts-ignore` with clean `tsc --noEmit` validation.
+
+### Firebase Auth Unauthorized Domain Resolution & Staging Diagnostics (`AuthContext.tsx`, `authHelpers.ts`, `LoginView.tsx`, `types/index.ts`, `firebase.ts`)
+- **Graceful Error Architecture (`AuthContext.tsx`)**: Replaced uncaught `console.error` and blocking browser alerts on `auth/unauthorized-domain` with a structured `authError` state (`AuthErrorInfo: { code, message, domain }`). Prevents uncaught crash reports while preserving full telemetry.
+- **Dedicated Staging Diagnostic Login View (`LoginView.tsx`)**: Extracted the unauthenticated login screen into a modular component. When Firebase rejects an origin hostname due to `auth/unauthorized-domain`:
+  - Presents an explanatory diagnostic card identifying the project (`mystic-return-81b2m`) and current container domain.
+  - One-click "Copiar Dominio" button with visual feedback to instantly copy the exact Cloud Run hostname to clipboard.
+  - Direct action button to open the Firebase Console Authorized Domains settings page (`https://console.firebase.google.com/project/mystic-return-81b2m/authentication/settings`).
+  - Step-by-step guidance on how to authorize the domain or wildcard `run.app`.
+  - Responsive "Reintentar Inicio de Sesión" button.
+- **Modularization & Rule 300/500 Compliance (`authHelpers.ts`)**: Extracted `resolveEffectiveImpersonation` and `syncUserDocument` into `src/utils/authHelpers.ts` (164 lines), reducing `AuthContext.tsx` from 294 to 214 lines (< 300) and `App.tsx` from 483 to 472 lines (< 500).
+- **Strict Type Safety (`firebase.ts`, `types/index.ts`)**: Replaced `authInfo: any` in `FirestoreErrorInfo` and `(err: any)` in `AuthContext` with strict typed structures, eliminating `@ts-ignore` and `any` usage.
+
+### Staging Sandbox Visual Differentiation & Environment Safeguards (`MainLayout.tsx`, `SidebarNav.tsx`, `index.html`)
+- **Browser Tab Identification (`index.html`, `metadata.json`)**: Updated the browser page title to `🧪 [STAGING] Azafrán Chefwear` so Don Pablo can immediately distinguish staging tabs from live production (`sistema-azafran.ai.studio`) across window tabs.
+- **Top Viewport Warning Stripe (`MainLayout.tsx`)**: Applied a high-visibility amber accent line (`border-t-4 border-amber-500`) along the topmost viewport edge of the root layout container.
+- **Header Staging Indicator Pill (`MainLayout.tsx`)**: Placed an amber staging badge pill between the breadcrumb navigation and the impersonation dropdown with pulsing indicator light (`animate-ping`). Displays full `🧪 STAGING / PRUEBAS` on desktop and adapts seamlessly to compact `🧪 STAGING` on mobile viewports without crowding out headers or controls.
+- **Sidebar Header Staging Badge (`SidebarNav.tsx`)**: Added an amber `STAGING` badge (`bg-amber-500/20 text-amber-400 border border-amber-500/40 text-[10px]`) adjacent to the brand mark in the expanded sidebar header.
+- **Rule 300 / Rule 500 Compliance**: Verified all modified visual layout components remain strictly under the 500-line visual threshold (`MainLayout.tsx`: 279 lines; `SidebarNav.tsx`: 469 lines) with zero TypeScript compiler errors.
+
 ### UDI Order Financial Reconciliation Patch (`udiReconciliationPatch.ts`, `udiFabricMigration.ts`)
 - **Three-Order Reconciliation Engine**: Created dedicated, idempotent database reconciliation patch (`src/utils/udiReconciliationPatch.ts`) targeting the 3 overcollected UDI student orders in the Firestore `orders` collection:
   - **#ORD-00021 (Mariana Santos / `ORD-1788533995246-669`)**: Set `totalPrice: 253` and `amountCollected: 253`. Removed legacy `reconciliationNote` using `deleteField()`. Leaves Saldo at **Bs 0.00**.

@@ -1,4 +1,4 @@
-import { TierDiscountRules } from './pricing';
+import { TierDiscountRules, CatalogGarmentPricing } from './pricing';
 
 export interface Socials {
   instagram?: string;
@@ -223,10 +223,17 @@ export interface PricingData {
   specialPresets?: Record<string, any>;
   garments?: Record<string, any>;
   udiPricing?: Record<string, any>;
+  catalogGarments?: Record<string, CatalogGarmentPricing>;
 }
 
 export * from './pricing';
 export * from './reports';
+
+export interface AuthErrorInfo {
+  code: string;
+  message: string;
+  domain: string;
+}
 
 export interface AuthUserProfile {
   name?: string;

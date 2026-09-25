@@ -3,7 +3,7 @@ import { doc, setDoc, writeBatch } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../firebase';
 
 export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
-  const [activeSettingsTab, setActiveSettingsTab] = useState<'A' | 'B' | 'C' | 'D'>('A');
+  const [activeSettingsTab, setActiveSettingsTab] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
   const [settingsForm, setSettingsForm] = useState<any>({
     garments: {},
     udiPricing: {},
@@ -23,7 +23,8 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
         specialPresetServices: pricing.specialPresetServices || {},
         specialPresetDiscounts: pricing.specialPresetDiscounts || {},
         discountRulesByTier: pricing.discountRulesByTier || {},
-        services: pricing.services || []
+        services: pricing.services || [],
+        catalogGarments: pricing.catalogGarments || {}
       });
     }
   }, [pricing]);
@@ -181,7 +182,7 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
         updatedAt: Date.now()
       };
 
-      await setDoc(doc(db, 'pricing', 'global'), payload);
+      await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
       setShowPricingConfirm(false);
       setShowPricingSuccess(true);
       setTimeout(() => setShowPricingSuccess(false), 3000);

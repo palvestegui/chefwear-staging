@@ -1,9 +1,15 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, signOut as firebaseSignOut, GoogleAuthProvider, signInWithPopup, User, Auth } from 'firebase/auth';
-import { doc, onSnapshot, getDoc, setDoc, writeBatch, collection, query, where, getDocs, serverTimestamp, Firestore } from 'firebase/firestore';
+import { doc, onSnapshot, Firestore } from 'firebase/firestore';
 import { auth as defaultAuth, db as defaultDb } from '../firebase';
-import { DEFAULT_USER_CONFIGS } from '../utils/constants';
-import { AuthUserProfile, ViewRoleOption } from '../types';
+import { AuthUserProfile, ViewRoleOption, AuthErrorInfo } from '../types';
+import {
+  syncUserDocument,
+  resolveEffectiveImpersonation,
+  STAGING_ADMIN_USER_PROFILE,
+  createStagingFirebaseUser,
+  buildUserProfileFromDoc
+} from '../utils/authHelpers';
 
 export interface AuthContextType {
   user: User | null;
@@ -14,7 +20,10 @@ export interface AuthContextType {
   activeViewRole: ViewRoleOption;
   setActiveViewRole: (role: ViewRoleOption) => void;
   isLoading: boolean;
+  authError: AuthErrorInfo | null;
+  clearAuthError: () => void;
   login: () => Promise<void>;
+  loginAsStagingAdmin: () => void;
   logout: () => Promise<void>;
   updateUserRole?: (role: string) => Promise<void>;
 }
@@ -28,17 +37,63 @@ const AuthContext = createContext<AuthContextType>({
   activeViewRole: 'admin',
   setActiveViewRole: () => {},
   isLoading: true,
+  authError: null,
+  clearAuthError: () => {},
   login: async () => {},
+  loginAsStagingAdmin: () => {},
   logout: async () => {}
 });
 
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db?: Firestore }> = ({ children, auth = defaultAuth, db = defaultDb }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [rawUserProfile, setRawUserProfile] = useState<AuthUserProfile | null>(null);
-  const [rawIsAdmin, setRawIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isStagingBypass, setIsStagingBypass] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('azafran_staging_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [user, setUser] = useState<User | null>(() => {
+    try {
+      if (sessionStorage.getItem('azafran_staging_auth') === 'true') {
+        return createStagingFirebaseUser();
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  });
+
+  const [rawUserProfile, setRawUserProfile] = useState<AuthUserProfile | null>(() => {
+    try {
+      if (sessionStorage.getItem('azafran_staging_auth') === 'true') {
+        return STAGING_ADMIN_USER_PROFILE;
+      }
+    } catch {
+      // Ignore
+    }
+    return null;
+  });
+
+  const [rawIsAdmin, setRawIsAdmin] = useState(() => {
+    try {
+      return sessionStorage.getItem('azafran_staging_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      return sessionStorage.getItem('azafran_staging_auth') !== 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const [authError, setAuthError] = useState<AuthErrorInfo | null>(null);
 
   // Impersonation state for SuperAdmin preview / video recording
   const [activeViewRole, setActiveViewRoleState] = useState<ViewRoleOption>(() => {
@@ -61,29 +116,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
       // Ignore storage errors
     }
   };
+
+  const clearAuthError = () => {
+    setAuthError(null);
+  };
   
   const login = async () => {
+    clearAuthError();
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
-      const result = await signInWithPopup(auth, provider);
-      // The onAuthStateChanged listener will automatically pick up result.user and resolve their Firestore profile.
-    } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
-        console.error("Auth Popup Error:", err);
-        alert('Error al iniciar sesión: ' + err.message);
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged listener will automatically pick up result.user and resolve their Firestore profile.
+    } catch (err: unknown) {
+      const authErr = err as { code?: string; message?: string };
+      const errCode = authErr.code || '';
+      
+      if (errCode === 'auth/popup-closed-by-user' || errCode === 'auth/cancelled-popup-request') {
+        return;
       }
+      
+      const currentDomain = typeof window !== 'undefined' ? window.location.hostname : '';
+      if (errCode === 'auth/unauthorized-domain') {
+        setAuthError({
+          code: 'auth/unauthorized-domain',
+          message: 'Dominio no autorizado en Firebase Authentication.',
+          domain: currentDomain
+        });
+        console.warn(`[FirebaseAuth] Domain "${currentDomain}" is not authorized in Firebase project.`);
+        return;
+      }
+      
+      setAuthError({
+        code: errCode || 'auth/unknown',
+        message: authErr.message || 'Error al iniciar sesión con Google.',
+        domain: currentDomain
+      });
+      console.warn('[FirebaseAuth] Error during sign-in:', authErr.message);
     }
+  };
+
+  const loginAsStagingAdmin = () => {
+    clearAuthError();
+    try {
+      sessionStorage.setItem('azafran_staging_auth', 'true');
+    } catch {
+      // Ignore sessionStorage error
+    }
+    setIsStagingBypass(true);
+    setUser(createStagingFirebaseUser());
+    setRawUserProfile(STAGING_ADMIN_USER_PROFILE);
+    setRawIsAdmin(true);
+    setIsLoading(false);
   };
   
   const logout = async () => {
+    clearAuthError();
+    try {
+      sessionStorage.removeItem('azafran_staging_auth');
+    } catch {
+      // Ignore
+    }
+    setIsStagingBypass(false);
+    setUser(null);
+    setRawUserProfile(null);
+    setRawIsAdmin(false);
     await firebaseSignOut(auth);
   };
 
   useEffect(() => {
+    if (isStagingBypass) {
+      setUser(createStagingFirebaseUser());
+      setRawUserProfile(STAGING_ADMIN_USER_PROFILE);
+      setRawIsAdmin(true);
+      setIsLoading(false);
+      return;
+    }
+
     let unsubProfile: (() => void) | null = null;
     
     const unsubAuth = onAuthStateChanged(auth, async (authUser) => {
+      if (isStagingBypass) return;
+
       setUser(authUser);
       if (!authUser) {
         if (unsubProfile) {
@@ -97,106 +211,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
       }
 
       try {
-        const userEmail = authUser.email || '';
-        const emailLower = userEmail.toLowerCase().trim();
         const userDocRef = doc(db, 'users', authUser.uid);
-        const userDocSnap = await getDoc(userDocRef);
-
-        if (!userDocSnap.exists()) {
-          // Query the 'users' collection where 'email' == user.email
-          let preDocSnap: { id: string; data: () => Record<string, unknown> } | null = null;
-
-          if (userEmail) {
-            const q = query(collection(db, 'users'), where('email', '==', userEmail));
-            const qSnap = await getDocs(q);
-            const found = qSnap.docs.find(d => d.id !== authUser.uid);
-            if (found) {
-              preDocSnap = found;
-            } else if (emailLower && emailLower !== userEmail) {
-              const qLower = query(collection(db, 'users'), where('email', '==', emailLower));
-              const qLowerSnap = await getDocs(qLower);
-              const foundLower = qLowerSnap.docs.find(d => d.id !== authUser.uid);
-              if (foundLower) {
-                preDocSnap = foundLower;
-              }
-            }
-          }
-
-          const preData = preDocSnap ? preDocSnap.data() : null;
-          const isPreApproved = preData && preData.status === 'APPROVED';
-
-          if (isPreApproved && preDocSnap) {
-            // Atomically create the new document doc(db, 'users', user.uid)
-            // with the pre-provisioned role, permissions, and metadata,
-            // and delete the temporary email-keyed document.
-            const batch = writeBatch(db);
-            batch.set(userDocRef, {
-              email: authUser.email,
-              emailLower,
-              displayName: (preData.displayName as string) || (preData.name as string) || authUser.displayName || 'Usuario',
-              name: (preData.name as string) || (preData.displayName as string) || authUser.displayName || 'Usuario',
-              photoURL: authUser.photoURL || (preData.photoURL as string) || null,
-              role: (preData.role as string) || 'VENTAS',
-              status: 'APPROVED',
-              canExport: Boolean(preData.canExport),
-              canEditPrices: Boolean(preData.canEditPrices),
-              canManageRoles: Boolean(preData.canManageRoles),
-              canAccessDangerZone: Boolean(preData.canAccessDangerZone),
-              preProvisioned: false,
-              boundAt: serverTimestamp(),
-              lastLoginAt: serverTimestamp(),
-              createdAt: (preData.createdAt as unknown) || serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
-
-            batch.delete(doc(db, 'users', preDocSnap.id));
-            await batch.commit();
-          } else {
-            const defaultConfig = DEFAULT_USER_CONFIGS[emailLower];
-            await setDoc(userDocRef, {
-              email: authUser.email,
-              emailLower,
-              displayName: authUser.displayName || (authUser.email ? authUser.email.split('@')[0] : 'Usuario'),
-              name: authUser.displayName || (authUser.email ? authUser.email.split('@')[0] : 'Usuario'),
-              photoURL: authUser.photoURL || null,
-              role: defaultConfig ? defaultConfig.role : 'SALES',
-              status: defaultConfig ? defaultConfig.status : 'PENDING',
-              canExport: defaultConfig ? defaultConfig.canExport : false,
-              canEditPrices: defaultConfig ? defaultConfig.canEditPrices : false,
-              canManageRoles: defaultConfig ? defaultConfig.canManageRoles : false,
-              canAccessDangerZone: defaultConfig ? defaultConfig.canAccessDangerZone : false,
-              preProvisioned: false,
-              lastLoginAt: serverTimestamp(),
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp()
-            });
-          }
-        } else {
-          await setDoc(userDocRef, {
-            lastLoginAt: serverTimestamp(),
-            photoURL: authUser.photoURL || null
-          }, { merge: true });
-        }
+        
+        await syncUserDocument(db, authUser);
 
         if (unsubProfile) unsubProfile();
         unsubProfile = onSnapshot(userDocRef, (snap) => {
           if (snap.exists()) {
-            const data = snap.data();
-            const defaultConfig = DEFAULT_USER_CONFIGS[emailLower];
-
-            const profile: AuthUserProfile = {
-              uid: authUser.uid,
-              id: authUser.uid,
-              role: data.role || (defaultConfig ? defaultConfig.role : 'SALES'),
-              name: data.name || data.displayName || authUser.displayName || (defaultConfig ? defaultConfig.name : (authUser.email ? authUser.email.split('@')[0] : 'Vendedor')),
-              status: data.status || (defaultConfig ? defaultConfig.status : 'PENDING'),
-              canExport: data.canExport ?? (defaultConfig ? defaultConfig.canExport : false),
-              canEditPrices: data.canEditPrices ?? (defaultConfig ? defaultConfig.canEditPrices : false),
-              canManageRoles: data.canManageRoles ?? (defaultConfig ? defaultConfig.canManageRoles : false),
-              canAccessDangerZone: data.canAccessDangerZone ?? (defaultConfig ? defaultConfig.canAccessDangerZone : false),
-              email: authUser.email || ''
-            };
-
+            const profile = buildUserProfileFromDoc(authUser, snap.data());
             setRawUserProfile(profile);
             setRawIsAdmin(profile.role === 'SUPERADMIN' || profile.role === 'ADMIN' || profile.role === 'SUPER_ADMIN');
           } else {
@@ -218,59 +240,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
       unsubAuth();
       if (unsubProfile) unsubProfile();
     };
-  }, [auth, db]);
+  }, [auth, db, isStagingBypass]);
 
   const isActualSuperAdmin = Boolean(
+    isStagingBypass ||
     rawUserProfile?.role === 'SUPER_ADMIN' ||
     rawUserProfile?.role === 'SUPERADMIN' ||
+    rawUserProfile?.role === 'admin' ||
     (user?.email && user.email.toLowerCase() === 'palvestegui@gmail.com') ||
     (rawUserProfile?.email && rawUserProfile.email.toLowerCase() === 'palvestegui@gmail.com')
   );
 
-  let effectiveUserProfile = rawUserProfile;
-  let effectiveIsAdmin = rawIsAdmin;
-  let effectiveIsSuperAdmin = isActualSuperAdmin;
-
-  // When SuperAdmin impersonates a specific role for preview or mobile video recording
-  if (isActualSuperAdmin && activeViewRole !== 'admin') {
-    if (activeViewRole === 'ventas') {
-      effectiveUserProfile = {
-        ...(rawUserProfile || {}),
-        role: 'VENTAS',
-        name: 'Matías (Ventas)',
-        canExport: false,
-        canEditPrices: false,
-        canManageRoles: false,
-        canAccessDangerZone: false
-      };
-      effectiveIsAdmin = false;
-      effectiveIsSuperAdmin = false;
-    } else if (activeViewRole === 'operaciones') {
-      effectiveUserProfile = {
-        ...(rawUserProfile || {}),
-        role: 'OPERACIONES',
-        name: 'León (Operaciones)',
-        canExport: true,
-        canEditPrices: false,
-        canManageRoles: false,
-        canAccessDangerZone: false
-      };
-      effectiveIsAdmin = false;
-      effectiveIsSuperAdmin = false;
-    } else if (activeViewRole === 'produccion') {
-      effectiveUserProfile = {
-        ...(rawUserProfile || {}),
-        role: 'PRODUCCION',
-        name: 'Doris (Producción)',
-        canExport: true,
-        canEditPrices: true,
-        canManageRoles: false,
-        canAccessDangerZone: false
-      };
-      effectiveIsAdmin = false;
-      effectiveIsSuperAdmin = false;
-    }
-  }
+  const { effectiveUserProfile, effectiveIsAdmin, effectiveIsSuperAdmin } = resolveEffectiveImpersonation(
+    rawUserProfile,
+    rawIsAdmin,
+    isActualSuperAdmin,
+    activeViewRole
+  );
 
   return (
     <AuthContext.Provider
@@ -283,7 +269,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
         activeViewRole,
         setActiveViewRole,
         isLoading,
+        authError,
+        clearAuthError,
         login,
+        loginAsStagingAdmin,
         logout
       }}
     >

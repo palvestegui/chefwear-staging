@@ -1,11 +1,20 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+
+export const firebaseConfig = {
+  apiKey: "AIzaSyDMjYBLUCJJ_BdJslKpk4iJUS3LnOAd3Yc",
+  authDomain: "azafran-staging.firebaseapp.com",
+  projectId: "azafran-staging",
+  storageBucket: "azafran-staging.firebasestorage.app",
+  messagingSenderId: "225609753361",
+  appId: "1:225609753361:web:3c49d39531080360a1a2b0",
+  measurementId: "G-7WNKD8S1QE"
+};
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app);
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {
@@ -21,7 +30,11 @@ export interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
-  authInfo: any;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+  };
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {

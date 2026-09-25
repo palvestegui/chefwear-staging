@@ -1,5 +1,6 @@
 import { Order, PricingData } from '../types';
 import { INITIAL_ORDER_STATE, INITIAL_ITEM_STATE } from '../utils/orderFormDefaults';
+import { DEFAULT_PRICING } from '../utils/pricingDefaults';
 import { usePricingEngine } from './usePricingEngine';
 import { useOrderState } from './useOrderState';
 import { useOrderSubmission } from './useOrderSubmission';
@@ -7,7 +8,7 @@ import { useOrderSubmission } from './useOrderSubmission';
 export { INITIAL_ORDER_STATE, INITIAL_ITEM_STATE };
 
 export const useOrderCreator = (
-  pricing: PricingData,
+  pricing: PricingData | null | undefined,
   editingOrder: Order | null,
   setEditingOrder: (order: Order | null) => void,
   setShowNewOrder: (val: boolean) => void,
@@ -15,7 +16,8 @@ export const useOrderCreator = (
   setManualAmount: (val: string) => void,
   setManualReceipt: (val: string | null) => void
 ) => {
-  const pricingEngine = usePricingEngine(pricing);
+  const effectivePricing = pricing || DEFAULT_PRICING;
+  const pricingEngine = usePricingEngine(effectivePricing);
   const state = useOrderState(editingOrder, setEditingOrder);
   
   const submission = useOrderSubmission(

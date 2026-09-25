@@ -10,15 +10,18 @@ import {
 import { OrderItem, ServicePricing } from '../types';
 import { getUdiBundleBreakdown } from '../domains/udi/udiBundleEngine';
 import { consolidateCommercialItems } from '../utils/orderItemConsolidation';
+import { DEFAULT_PRICING } from '../utils/pricingDefaults';
 
 export const usePricingEngine = (pricing: any) => {
+  const effectivePricing = pricing || DEFAULT_PRICING;
+
   const getItemUnitPrice = (item: any, category: string = 'Personal', accountId?: string) => {
     if (item?.customUnitPrice !== undefined && item?.customUnitPrice !== null) {
       return Number(item.customUnitPrice);
     }
-    if (!pricing) return 0;
+    if (!effectivePricing) return 0;
 
-    const specialPresets = pricing.specialPresets || { "UDI Especial": pricing.udiPricing || {} };
+    const specialPresets = effectivePricing.specialPresets || { "UDI Especial": effectivePricing.udiPricing || {} };
     const rawTier = item?.pricingTier || item?.specialPreset || category || item?.category || 'Personal';
     const finalAccountId = accountId || item?.accountId;
 
@@ -26,7 +29,7 @@ export const usePricingEngine = (pricing: any) => {
     if (item?.name === 'Uniforme Completo UDI') {
       const presetData = (item?.specialPreset && specialPresets[item.specialPreset])
         ? specialPresets[item.specialPreset]
-        : (specialPresets['UDI Especial'] || pricing.udiPricing || {});
+        : (specialPresets['UDI Especial'] || effectivePricing.udiPricing || {});
       const breakdown = getUdiBundleBreakdown(presetData);
       return breakdown.total;
     }
@@ -86,13 +89,13 @@ export const usePricingEngine = (pricing: any) => {
     // 3. Tab A - Catalog Resolution by Pricing Tier (Basic Raleo vs Negotiated B2B)
     const isB2B = rawTier === 'Estándar B2B' || rawTier === 'B2B Estándar' || rawTier === 'B2B';
 
-    return getGarmentPriceValue(pricing.garments, item.name, item.fabric, isB2B);
+    return getGarmentPriceValue(effectivePricing.garments, item.name, item.fabric, isB2B);
   };
 
   
   const getServiceUnitPrice = (s: string, item: OrderItem, orderItems?: OrderItem[]): number => {
-    if (!pricing) return 0;
-    const srvDef = pricing.services?.find((x: ServicePricing) => x.name === s);
+    if (!effectivePricing) return 0;
+    const srvDef = effectivePricing.services?.find((x: ServicePricing) => x.name === s);
     if (srvDef?.type === 'Escala de Volumen (Logos)' || (!srvDef && s.toUpperCase().includes('LOGO'))) { 
        if (item?.customServicePrices && item.customServicePrices[s] !== undefined) {
           return Number(item.customServicePrices[s]) || 0;
@@ -108,7 +111,7 @@ export const usePricingEngine = (pricing: any) => {
   };
 
   const calculateItemPriceRaw = (item: any, category: string = 'Personal', accountId?: string, orderItems?: OrderItem[]): number => {
-    if (!pricing) return 0;
+    if (!effectivePricing) return 0;
     
     const getSrvCost = (s: string) => getServiceUnitPrice(s, item as OrderItem, orderItems);
 
@@ -147,11 +150,11 @@ export const usePricingEngine = (pricing: any) => {
       accountId,
       (it, cat, accId) => calculateItemPriceRaw(it, cat, accId, itemsList),
       {
-        discountRulesByTier: pricing?.discountRulesByTier,
-        specialPresetDiscounts: pricing?.specialPresetDiscounts
+        discountRulesByTier: effectivePricing?.discountRulesByTier,
+        specialPresetDiscounts: effectivePricing?.specialPresetDiscounts
       },
       migrationFlatDiscount,
-      pricing?.services
+      effectivePricing?.services
     );
   };
 

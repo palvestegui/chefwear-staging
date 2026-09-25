@@ -6,6 +6,7 @@ import { Order, PricingData, FirebaseUserSubset } from '../types';
 import { ClientAccount, MasterContact } from '../types/crm';
 import { runUdiFabricMigration } from '../utils/udiFabricMigration';
 import { runUdiReconciliationPatch } from '../utils/udiReconciliationPatch';
+import { initStagingSeed } from '../utils/stagingSeeder';
 
 let udiFabricVerified = false;
 let udiReconciliationVerified = false;
@@ -68,6 +69,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode, db: any }> = ({
     setIsLoading(true);
     setError(null);
     try {
+      // Auto-seed baseline staging entities (accounts, superadmin, pricing) if database is fresh
+      initStagingSeed(db).catch((err: unknown) => {
+        console.warn('[DataContext] Staging baseline seed check:', err);
+      });
+
       unsubs.push(onSnapshot(collection(db, 'clientAccounts'), (snapshot) => {
         setClientAccounts(snapshot.docs.map(d => ({ id: d.id, accountId: d.data().accountId || d.id, ...d.data() } as ClientAccount)));
       }));

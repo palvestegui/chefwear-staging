@@ -14,7 +14,7 @@ interface MainLayoutProps {
   isApproved: boolean;
   ventasTab?: string;
   setVentasTab?: (tab: any) => void;
-  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'seguridad';
+  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad';
   setSettingsTab?: (tab: any) => void;
   invalidPriceFields?: Set<string>;
 }
@@ -113,6 +113,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
         if (settingsTab === 'B') return 'Ajustes · Especiales';
         if (settingsTab === 'C') return 'Ajustes · Servicios';
         if (settingsTab === 'D') return 'Ajustes · Descuentos';
+        if (settingsTab === 'E') return 'Ajustes · Catálogo';
         if (settingsTab === 'seguridad') return 'Ajustes · Roles & Usuarios';
         return 'Ajustes del Sistema';
       default: return 'Workspace';
@@ -120,7 +121,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-stone-950 text-stone-100 flex overflow-x-hidden">
+    <div className="min-h-screen w-full bg-stone-950 text-stone-100 flex overflow-x-hidden border-t-4 border-amber-500">
       {/* 1. Desktop Persistent Left Sidebar */}
       <aside
         className={`hidden lg:flex transition-all duration-300 border-r border-stone-800 bg-stone-900/40 shrink-0 select-none ${
@@ -190,6 +191,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" title="En Línea" />
             </div>
+          </div>
+
+          {/* Staging Sandbox Indicator Badge */}
+          <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/60 text-amber-300 text-xs font-bold font-mono tracking-wider uppercase shadow-sm select-none shrink-0 mx-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+            <span className="hidden sm:inline">🧪 STAGING / PRUEBAS</span>
+            <span className="sm:hidden">🧪 STAGING</span>
           </div>
 
           {/* Discreet Modo Vista (Impersonation Selector) */}

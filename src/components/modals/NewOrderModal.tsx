@@ -11,6 +11,7 @@ import { InstitutionalRosterModal } from './newOrder/InstitutionalRosterModal';
 import { expandRosterToOrderItems } from '../../utils/institutionalOrderUtils';
 import { getEffectiveTierDiscountRules } from '../../utils/discountRulesUtils';
 import { resolveOrderTier } from '../../utils/pricingTierUtils';
+import { DEFAULT_PRICING, DEFAULT_FALLBACK_ACCOUNT } from '../../utils/pricingDefaults';
 
 interface NewOrderModalProps {
   showNewOrder: boolean;
@@ -42,10 +43,11 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
   const { pricing, clientAccounts, accountContacts, masterContacts, orders, usersList } = useData();
   const { isSuperAdmin } = useAuth();
   const canBackdate = isSuperAdmin === true;
-  const pricingEngine = usePricingEngine(pricing);
+  const effectivePricing = pricing || DEFAULT_PRICING;
+  const pricingEngine = usePricingEngine(effectivePricing);
 
   const fallbackCreator = useOrderCreator(
-    pricing,
+    effectivePricing,
     editingOrder,
     setEditingOrder || (() => {}),
     setShowNewOrder,
@@ -77,7 +79,12 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
     Boolean(isSuperAdmin && (isMigrationMode || (editingOrder && editingOrder.migrationDate)))
   );
 
-  if (!showNewOrder || !pricing || !newOrder) return null;
+  if (!showNewOrder) return null;
+  if (!newOrder) return null;
+
+  const effectiveAccounts = (clientAccounts && clientAccounts.length > 0)
+    ? clientAccounts
+    : [DEFAULT_FALLBACK_ACCOUNT];
 
   const directoryContacts = customContacts || masterContacts || [];
 
@@ -214,7 +221,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
               showContactDropdown={showContactDropdown}
               setShowContactDropdown={setShowContactDropdown}
               directoryContacts={directoryContacts}
-              clientAccounts={clientAccounts}
+              clientAccounts={effectiveAccounts}
               accountContacts={accountContacts}
               orders={orders}
               usersList={usersList}
@@ -227,7 +234,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
               setNewOrder={setNewOrder}
               currentItem={currentItem}
               setCurrentItem={setCurrentItem}
-              pricing={pricing}
+              pricing={effectivePricing}
               orderHeaderMode={orderHeaderMode}
               setShowQuickSizeModal={setShowQuickSizeModal || (() => {})}
               calculateItemPriceRaw={pricingEngine.calculateItemPriceRaw}
@@ -281,8 +288,8 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
 
               const rules = getEffectiveTierDiscountRules(
                 activeTier,
-                pricing?.discountRulesByTier,
-                pricing?.specialPresetDiscounts
+                effectivePricing?.discountRulesByTier,
+                effectivePricing?.specialPresetDiscounts
               );
 
               if (!rules.sellerDiscountEnabled) return null;
@@ -320,7 +327,7 @@ export const NewOrderModal: React.FC<NewOrderModalProps> = ({
             <OrderSummaryAndCheckout
               newOrder={newOrder}
               setNewOrder={setNewOrder}
-              pricing={pricing}
+              pricing={effectivePricing}
               orderHeaderMode={orderHeaderMode}
               editingQuoteId={editingQuoteId}
               setOrderToCollect={setOrderToCollect}

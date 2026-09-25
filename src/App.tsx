@@ -37,13 +37,14 @@ import { QuickSizeModal } from './components/modals/QuickSizeModal';
 import { EditInstitutionalRosterModal } from './components/modals/EditInstitutionalRosterModal';
 import { CancelActiveOrderModal } from './components/modals/CancelActiveOrderModal';
 import { CancelQuoteModal } from './components/modals/CancelQuoteModal';
+import { LoginView } from './components/auth/LoginView';
 
 export const App: React.FC = () => {
-  const { user, userProfile, isLoading: authLoading, login, activeViewRole } = useAuth();
+  const { user, userProfile, isLoading: authLoading, login, loginAsStagingAdmin, authError, clearAuthError, activeViewRole } = useAuth();
   const { clientAccounts, masterContacts, orders, sizeTables: garmentSizeTablesFromDb, usersList: allUsers, pricing, isLoading: dataLoading } = useData();
 
   const [activeTab, setActiveTab] = useState('ventas');
-  const [settingsTab, setSettingsTab] = useState<'A' | 'B' | 'C' | 'D' | 'seguridad'>('A');
+  const [settingsTab, setSettingsTab] = useState<'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad'>('A');
 
   // Role-based landing tab router (runs strictly once upon initial authenticated load)
   const hasSetInitialLandingTab = useRef(false);
@@ -168,15 +169,12 @@ export const App: React.FC = () => {
 
   if (!user || !userProfile) {
     return (
-      <div className="min-h-screen bg-stone-950 flex flex-col items-center justify-center p-4">
-        <div className="bg-stone-900/90 border border-stone-800 p-8 rounded-3xl max-w-md w-full text-center space-y-6 shadow-2xl backdrop-blur-sm">
-          <h1 className="text-3xl font-black text-amber-500 uppercase tracking-tighter drop-shadow-md">AZAFRÁN CHEFWEAR</h1>
-          <p className="text-[11px] text-stone-400 font-bold uppercase tracking-widest">Confección de Autor • Sistema de Gestión y Logística</p>
-          <button onClick={login} className="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-xs transition">
-            Iniciar Sesión con Google
-          </button>
-        </div>
-      </div>
+      <LoginView
+        onLogin={login}
+        onBypassLogin={loginAsStagingAdmin}
+        authError={authError}
+        onClearError={clearAuthError}
+      />
     );
   }
 

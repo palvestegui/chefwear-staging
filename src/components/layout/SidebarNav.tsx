@@ -30,8 +30,8 @@ export interface SidebarNavProps {
   onToggleCollapse?: () => void;
   ventasTab?: string;
   setVentasTab?: (tab: any) => void;
-  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'seguridad';
-  setSettingsTab?: (tab: 'A' | 'B' | 'C' | 'D' | 'seguridad') => void;
+  settingsTab?: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad';
+  setSettingsTab?: (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad') => void;
   invalidPriceFields?: Set<string>;
 }
 
@@ -73,7 +73,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
     }
   };
 
-  const handleSettingsSubTab = (tab: 'A' | 'B' | 'C' | 'D' | 'seguridad') => {
+  const handleSettingsSubTab = (tab: 'A' | 'B' | 'C' | 'D' | 'E' | 'seguridad') => {
     setActiveTab('ajustes');
     if (setSettingsTab) {
       setSettingsTab(tab);
@@ -114,7 +114,12 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                   <ChefHat size={18} />
                 </div>
                 <div>
-                  <h1 className="text-sm font-black tracking-tight text-stone-100 uppercase">Azafrán</h1>
+                  <div className="flex items-center">
+                    <h1 className="text-sm font-black tracking-tight text-stone-100 uppercase">Azafrán</h1>
+                    <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/20 text-amber-400 border border-amber-500/40">
+                      STAGING
+                    </span>
+                  </div>
                   <p className="text-[10px] text-stone-500 font-semibold tracking-wider uppercase">Chefwear CRM</p>
                 </div>
               </div>
@@ -383,6 +388,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({
                     { id: 'B' as const, label: 'Especiales', hasError: hasTabBErrors },
                     { id: 'C' as const, label: 'Servicios', hasError: false },
                     { id: 'D' as const, label: 'Descuentos', hasError: false },
+                    { id: 'E' as const, label: 'Catálogo', hasError: false },
                     ...((canManageRoles || isSuperAdmin) ? [{ id: 'seguridad' as const, label: 'Roles & Usuarios', hasError: false }] : [])
                   ].map(subItem => {
                     const isActive = isAjustesActive && settingsTab === subItem.id;

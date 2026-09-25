@@ -7,9 +7,12 @@ import {
   CheckCircle2,
   Layers,
   Sparkles,
-  Package
+  Package,
+  BookOpen
 } from 'lucide-react';
 import { getUdiBundleBreakdown } from '../utils/udiPackageUtils';
+import { CatalogGarmentPricing } from '../types';
+import { CatalogReferenceCards } from './pricing/CatalogReferenceCards';
 
 export interface ServiceItem {
   garment: string;
@@ -24,12 +27,14 @@ export interface PriceReferenceProps {
     udiPricing?: Record<string, Record<string, number> | number>;
     specialPresets?: Record<string, Record<string, Record<string, number> | number>>;
     services?: ServiceItem[];
+    catalogGarments?: Record<string, CatalogGarmentPricing>;
     updatedAt?: number;
   } | null;
   cataloguePrices?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number>>;
   udiPricing?: Record<string, Record<string, number> | number>;
   specialPresets?: Record<string, Record<string, Record<string, number> | number>>;
   services?: ServiceItem[];
+  catalogGarments?: Record<string, CatalogGarmentPricing>;
 }
 
 // Predetermined custom card display order
@@ -68,6 +73,9 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
   const udiData = useMemo(() => {
     return explicitUdiPricing || pricing?.udiPricing || pricing?.specialPresets?.['UDI Especial'] || {};
   }, [explicitUdiPricing, pricing?.udiPricing, pricing?.specialPresets]);
+
+  // View mode tab switcher: 'base' vs. 'catalogo'
+  const [activeTab, setActiveTab] = useState<'base' | 'catalogo'>('base');
 
   // Real-time search query
   const [searchQuery, setSearchQuery] = useState('');
@@ -183,24 +191,42 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in max-w-6xl mx-auto pb-16">
-      {/* Compact Top Header & Search Bar */}
+      {/* Top Header: Segmented Tab Switcher & Search Bar */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-stone-900/80 p-2 sm:p-2.5 rounded-2xl border border-stone-800 shadow-sm">
-        <div className="flex items-center gap-2 px-2 shrink-0">
-          <Shirt className="text-amber-500 shrink-0" size={18} />
-          <h2 className="text-sm font-black uppercase tracking-wider text-stone-100">
-            Tarifario
-          </h2>
-          <span className="text-[10px] font-mono text-stone-500 font-bold ml-1">
-            ({filteredGarmentCards.length} {filteredGarmentCards.length === 1 ? 'prenda' : 'prendas'})
-          </span>
+        {/* Compact Segmented Switcher */}
+        <div className="flex items-center gap-1.5 p-1 bg-stone-950 rounded-xl border border-stone-800 shrink-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('base')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer ${
+              activeTab === 'base'
+                ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <Shirt size={14} />
+            <span>Tarifario Base</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('catalogo')}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition cursor-pointer ${
+              activeTab === 'catalogo'
+                ? 'bg-amber-500 text-stone-950 shadow-md shadow-amber-500/20'
+                : 'text-stone-400 hover:text-stone-200'
+            }`}
+          >
+            <BookOpen size={14} />
+            <span>Catálogo</span>
+          </button>
         </div>
 
-        {/* Real-Time Dual-Filter Search Bar */}
+        {/* Real-Time Search Bar */}
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-500" size={15} />
           <input
             type="text"
-            placeholder="Buscar prenda o tela (ej: Filipina, Pantalón, Drill...)"
+            placeholder={activeTab === 'base' ? "Buscar prenda o tela (ej: Filipina, Drill...)" : "Buscar en catálogo (ej: Chaqueta, Jean...)"}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-stone-950 border border-stone-800 rounded-xl pl-9 pr-16 py-2 text-xs font-bold text-stone-200 placeholder:text-stone-600 outline-none focus:border-amber-500/60 transition-colors"
@@ -208,7 +234,7 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-stone-400 hover:text-stone-200 uppercase tracking-wider px-2 py-0.5 rounded bg-stone-900 border border-stone-800"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-stone-400 hover:text-stone-200 uppercase tracking-wider px-2 py-0.5 rounded bg-stone-900 border border-stone-800 cursor-pointer"
             >
               Limpiar
             </button>
@@ -216,11 +242,13 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 1. GARMENT CARDS SECTION (TOP)                                            */}
-      {/* One card per unique garment type with clean read-only table of fabrics    */}
-      {/* ========================================================================= */}
-      <div className="space-y-4">
+      {activeTab === 'base' && (
+        <>
+          {/* ========================================================================= */}
+          {/* 1. GARMENT CARDS SECTION (TOP)                                            */}
+          {/* One card per unique garment type with clean read-only table of fabrics    */}
+          {/* ========================================================================= */}
+          <div className="space-y-4">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Shirt className="text-amber-500" size={18} />
@@ -409,6 +437,15 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
           })}
         </div>
       </div>
-    </div>
-  );
+    </>
+  )}
+
+  {activeTab === 'catalogo' && (
+    <CatalogReferenceCards
+      catalogGarments={pricing?.catalogGarments}
+      searchQuery={searchQuery}
+    />
+  )}
+</div>
+);
 };
