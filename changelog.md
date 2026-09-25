@@ -1,4 +1,46 @@
 ## [Unreleased]
+### Implement HTTP JSON-RPC MCP Server at /mcp in server.ts (`server.ts`)
+- **JSON-RPC 2.0 MCP Protocol Implementation**:
+  - Implemented direct HTTP JSON-RPC 2.0 endpoint at `/mcp` (GET for status/health ping, POST for JSON-RPC dispatcher).
+  - Added permissive CORS middleware allowing `*` origins, `GET, POST, OPTIONS` methods, and `Content-Type, Authorization` headers with 204 OPTIONS preflight for Gemini MCP connector compatibility.
+- **Protocol Methods**:
+  - `initialize`: Returns protocolVersion `2024-11-05`, tools capability, and serverInfo (`name: "azafran-ventas-staging"`, `version: "1.0.0"`).
+  - `notifications/initialized`: Responds with HTTP 200 `{}`.
+  - `tools/list`: Exposes metadata schemas for `staging_get_pricing`, `staging_get_orders`, `staging_get_quotes`, and `staging_pull_precios_config`.
+  - `tools/call`: Executes Staging Firestore tool calls and serializes formatted JSON content with standard JSON-RPC error encapsulation.
+- **Architectural Compliance**:
+  - Single file implementation in `server.ts` (178 lines), strictly conforming to Rule 300 (<300 lines).
+  - Zero `any` types throughout request interfaces and data pipelines.
+  - Clean verification with `tsc --noEmit` and `compile_applet`.
+### Implement Staging MCP Server in server.ts (`server.ts`, `@modelcontextprotocol/sdk`)
+- **Model Context Protocol (MCP) Server Integration**:
+  - Integrated `@modelcontextprotocol/sdk` into `server.ts` alongside Vite dev server.
+  - Instantiated `McpServer` named `"AzafranVentasStagingMCP"` (v1.0.0).
+  - Configured SSE transport with `/sse` endpoint and `/messages` POST handler for client interactions.
+- **Registered Staging Tools**:
+  - `staging_get_pricing`: Inspects current `pricing/global` Firestore document.
+  - `staging_get_orders`: Lists all active staging orders from Firestore.
+  - `staging_get_quotes`: Lists all active staging quotes from Firestore.
+  - `staging_pull_precios_config`: Reads `config/system-wide-config` from Precios and populates Staging `pricing/global` with `{ merge: true }` preserving services and UDI presets.
+- **Architectural Compliance**:
+  - Strictly adhering to Rule 300 (<300 lines limit for logical files; `server.ts` is 127 lines).
+  - Zero `any` types across all tool handlers and server routines.
+  - Fixed dev server binding to port 3000 to maintain compatibility with iframe preview.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Add "Sincronizar desde Precios" Button in Staging Maintenance (`StagingMaintenanceView.tsx`, `MaintenanceActionCard.tsx`, `DataContext.tsx`, `maintenanceUtils.ts`)
+- **"Sincronizar desde Precios" Action Button**:
+  - Added a prominent, amber-accented action button labeled **`"SINCRONIZAR DESDE PRECIOS"`** with download icon inside the "Catálogo de Precios" card of `StagingMaintenanceView.tsx`.
+  - Positioned directly above the empty/reset button, keeping `BasePricingTab.tsx` and `CatalogPricingTab.tsx` clean and untampered.
+- **Handler Implementation (`handleSyncFromPrecios`)**:
+  - Pulls the fresh `pricing/global` document snapshot directly from Firestore.
+  - Updates local pricing state across `DataContext` via `setPricing(data)`, ensuring immediate synchronization across **`TARIFARIO BASE`** and **`CATÁLOGO`** views upon navigation.
+  - Features real-time animated loading state `<Loader2 className="w-4 h-4 animate-spin" />` while syncing.
+  - Emits the visual feedback banner at the top of the panel and displays the emerald success toast: `✓ Tarifario y Catálogo sincronizados con éxito desde Precios`.
+- **Architectural Modularization & Rule 300 Strict**:
+  - Created `src/utils/maintenanceUtils.ts` (82 lines) to encapsulate Firestore purge batches, catalog resets, and staging data initialization.
+  - Extended `MaintenanceActionCard.tsx` (108 lines) with `topAction` prop to accommodate multi-action cards cleanly.
+  - Refactored `StagingMaintenanceView.tsx` to 291 lines, strictly respecting Rule 300 (< 300 lines limit).
+  - 100% strict TypeScript types with zero `any`, verified with `tsc --noEmit`.
 ### Restore Canonical Services & UDI and Safe Merge in Staging Maintenance (`StagingMaintenanceView.tsx`, `MaintenanceActionCard.tsx`)
 - **Canonical Services & UDI Restoration Button**:
   - Imported `canonicalData` from `src/data/canonicalServicesAndUdi.json` containing the official, complete catalog of services, special presets (`UDI Especial`), and UDI item price matrices.

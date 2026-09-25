@@ -8,61 +8,53 @@ import {
   ShoppingCart, 
   Loader2, 
   ShieldCheck, 
-  CheckCircle2,
-  Sparkles
+  CheckCircle2, 
+  Sparkles, 
+  Download 
 } from 'lucide-react';
-import { collection, doc, getDocs, setDoc, writeBatch, Firestore } from 'firebase/firestore';
+import { doc, getDoc, Firestore } from 'firebase/firestore';
 import { db as defaultDb } from '../../../firebase';
 import { useAuth } from '../../../contexts/AuthContext';
-import { runSeedUDI } from '../../../utils/crmSeedUtils';
-import { isSystemAccount } from '../../../utils/constants';
+import { useData } from '../../../contexts/DataContext';
 import { showSuccessToast, showErrorToast } from '../../../utils/toastUtils';
+import { 
+  purgeQuotesAndOrders, 
+  purgeStagingData, 
+  resetCatalogPricing, 
+  restoreCanonicalServices 
+} from '../../../utils/maintenanceUtils';
 import { MaintenanceActionCard } from './MaintenanceActionCard';
 import canonicalData from '../../../data/canonicalServicesAndUdi.json';
+import { PricingData } from '../../../types';
 
 export interface StagingMaintenanceViewProps {
   db?: Firestore;
   onNotify?: (msg: string, type: 'success' | 'error') => void;
+  setPricing?: (data: PricingData | null) => void;
 }
-
-const purgeCollection = async (
-  firestore: Firestore,
-  collectionName: string,
-  filterFn?: (id: string) => boolean
-): Promise<number> => {
-  const colRef = collection(firestore, collectionName);
-  const snap = await getDocs(colRef);
-  const targets = snap.docs.filter(d => (filterFn ? filterFn(d.id) : true));
-  
-  const CHUNK_SIZE = 400;
-  let deleted = 0;
-  for (let i = 0; i < targets.length; i += CHUNK_SIZE) {
-    const chunk = targets.slice(i, i + CHUNK_SIZE);
-    const batch = writeBatch(firestore);
-    chunk.forEach(d => batch.delete(d.ref));
-    await batch.commit();
-    deleted += chunk.length;
-  }
-  return deleted;
-};
 
 export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({ 
   db: propDb,
-  onNotify 
+  onNotify,
+  setPricing: propSetPricing
 }) => {
   const firestore = propDb || defaultDb;
   const { user } = useAuth();
+  const { setPricing: contextSetPricing } = useData();
+  const updatePricingState = propSetPricing || contextSetPricing;
+
   const [confirmingAction, setConfirmingAction] = useState<'catalog' | 'services' | 'orders' | 'total' | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isResettingCatalog, setIsResettingCatalog] = useState(false);
   const [isRestoringServices, setIsRestoringServices] = useState(false);
   const [isPurgingOrders, setIsPurgingOrders] = useState(false);
   const [isFactoryResetting, setIsFactoryResetting] = useState(false);
 
-  const isBusy = isResettingCatalog || isRestoringServices || isPurgingOrders || isFactoryResetting;
+  const isBusy = isSyncing || isResettingCatalog || isRestoringServices || isPurgingOrders || isFactoryResetting;
 
   const notifyResult = (msg: string, isError = false) => {
-    setSuccessMessage(isError ? `❌ ${msg}` : msg);
+    setSuccessMessage(msg);
     if (isError) {
       showErrorToast(msg);
       onNotify?.(msg, 'error');
@@ -72,32 +64,35 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
     }
   };
 
+  const handleSyncFromPrecios = async () => {
+    setIsSyncing(true);
+    setSuccessMessage(null);
+    try {
+      console.log("[Maintenance] Pulling fresh pricing/global from Firestore...");
+      const snap = await getDoc(doc(firestore, "pricing", "global"));
+      if (snap.exists()) {
+        const data = snap.data() as PricingData;
+        updatePricingState?.(data);
+        notifyResult("✓ Tarifario y Catálogo sincronizados con éxito desde Precios");
+      } else {
+        notifyResult("⚠️ No se encontró el documento pricing/global en Firestore", true);
+      }
+    } catch (err: unknown) {
+      console.error("[Maintenance] Error pulling pricing:", err);
+      const errMsg = "❌ Error: " + (err instanceof Error ? err.message : String(err));
+      notifyResult(errMsg, true);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const executeResetCatalog = async () => {
     setIsResettingCatalog(true);
     setSuccessMessage(null);
     try {
-      console.log("[Maintenance] Executing catalog reset on pricing/global with { merge: true }...");
-      // Safe reset with merge: true ensures services & specialPresets are NEVER lost
-      await setDoc(doc(firestore, "pricing", "global"), {
-        garments: {},
-        catalog: [],
-        version: 0,
-        updatedAt: Date.now(),
-      }, { merge: true });
-
-      try {
-        await setDoc(doc(firestore, "settings", "pricing"), {
-          garments: {},
-          catalog: [],
-          updatedAt: Date.now(),
-        }, { merge: true });
-      } catch (legacyErr) {
-        console.warn("[Maintenance] Legacy settings/pricing reset skipped:", legacyErr);
-      }
-
-      notifyResult("✓ Catálogo de prendas vaciado con éxito (servicios y presets preservados)");
+      await resetCatalogPricing(firestore);
+      notifyResult("✓ Catálogo de prendas vaciado con éxito en Firestore (Servicios y UDI preservados)");
     } catch (err: unknown) {
-      console.error("[Maintenance] Error resetting catalog:", err);
       const msg = err instanceof Error ? err.message : String(err);
       notifyResult(`Error al vaciar catálogo: ${msg}`, true);
     } finally {
@@ -110,13 +105,11 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
     setIsRestoringServices(true);
     setSuccessMessage(null);
     try {
-      console.log("[Maintenance] Restoring canonical services and UDI on pricing/global with { merge: true }...");
-      await setDoc(doc(firestore, "pricing", "global"), canonicalData, { merge: true });
+      await restoreCanonicalServices(firestore, canonicalData);
       notifyResult("✓ Servicios y tarifas UDI restaurados con éxito desde datos canónicos");
     } catch (err: unknown) {
-      console.error("[Maintenance] Error restoring services & UDI:", err);
       const msg = err instanceof Error ? err.message : String(err);
-      notifyResult(`Error al restaurar servicios y UDI: ${msg}`, true);
+      notifyResult(`Error al restaurar servicios: ${msg}`, true);
     } finally {
       setIsRestoringServices(false);
       setConfirmingAction(null);
@@ -127,14 +120,10 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
     setIsPurgingOrders(true);
     setSuccessMessage(null);
     try {
-      const q = await purgeCollection(firestore, 'quotes');
-      const o = await purgeCollection(firestore, 'orders');
-      const i = await purgeCollection(firestore, 'orderItems');
-      const m = await purgeCollection(firestore, 'orderModifiers');
-      notifyResult(`✓ Cotizaciones y pedidos purgados (${q + o + i + m} registros)`);
+      const total = await purgeQuotesAndOrders(firestore);
+      notifyResult(`✓ Cotizaciones y pedidos purgados (${total} registros)`);
     } catch (err: unknown) {
-      console.error("[Maintenance] Error purging quotes/orders:", err);
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = err instanceof Error ? err.message : 'Error desconocido al purgar pedidos';
       notifyResult(`Error al purgar pedidos: ${msg}`, true);
     } finally {
       setIsPurgingOrders(false);
@@ -146,27 +135,9 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
     setIsFactoryResetting(true);
     setSuccessMessage(null);
     try {
-      await purgeCollection(firestore, 'quotes');
-      await purgeCollection(firestore, 'orders');
-      await purgeCollection(firestore, 'orderItems');
-      await purgeCollection(firestore, 'orderModifiers');
-      await purgeCollection(firestore, 'clientAccounts', id => !isSystemAccount(id));
-      await purgeCollection(firestore, 'accounts', id => !isSystemAccount(id));
-      await purgeCollection(firestore, 'masterContacts', id => id !== 'CON-001');
-      await purgeCollection(firestore, 'account_contacts');
-
-      await setDoc(doc(firestore, 'pricing', 'global'), { 
-        garments: {}, 
-        catalog: [], 
-        version: 0,
-        updatedAt: Date.now()
-      }, { merge: true });
-      await setDoc(doc(firestore, 'pricing', 'global'), canonicalData, { merge: true });
-
-      await runSeedUDI(firestore, user, [], true);
+      await purgeStagingData(firestore, user, canonicalData);
       notifyResult('✓ Datos de staging purgados (ACC-000 y ACC-001 preservados)');
     } catch (err: unknown) {
-      console.error("[Maintenance] Error in factory reset:", err);
       const msg = err instanceof Error ? err.message : 'Error desconocido en la limpieza total';
       notifyResult(`Error en limpieza total: ${msg}`, true);
     } finally {
@@ -197,6 +168,7 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-mono font-bold animate-pulse">
             <Loader2 className="w-4 h-4 animate-spin" />
             <span>
+              {isSyncing && 'Sincronizando Precios...'}
               {isResettingCatalog && 'Vaciando Catálogo...'}
               {isRestoringServices && 'Restaurando Servicios...'}
               {isPurgingOrders && 'Purgando Pedidos...'}
@@ -233,7 +205,7 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
         <MaintenanceActionCard
           icon={<Tag className="w-4 h-4" />}
           title="Catálogo de Precios"
-          description={<>Vacía las prendas del catálogo (<code className="text-stone-300">garments</code> y <code className="text-stone-300">catalog</code>) preservando servicios.</>}
+          description={<>Sincroniza desde el tarifario oficial o vacía las prendas (<code className="text-stone-300">garments</code> y <code className="text-stone-300">catalog</code>).</>}
           actionKey="catalog"
           confirmingAction={confirmingAction}
           onStartConfirm={setConfirmingAction}
@@ -244,6 +216,21 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
           defaultLabel="Restablecer / Vaciar Catálogo"
           confirmLabel="⚠️ SÍ, VACIAR AHORA"
           defaultIcon={<RefreshCw className="w-4 h-4 text-stone-400" />}
+          topAction={
+            <button
+              type="button"
+              onClick={handleSyncFromPrecios}
+              disabled={isBusy}
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-black text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-amber-500/20"
+            >
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 animate-spin text-stone-950" />
+              ) : (
+                <Download className="w-4 h-4 text-stone-950" />
+              )}
+              <span>Sincronizar desde Precios</span>
+            </button>
+          }
         />
 
         {/* Card 2: Restaurar Servicios y UDI */}

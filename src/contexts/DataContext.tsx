@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, Unsubscribe, Firestore } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from './AuthContext';
 import { Order, PricingData, FirebaseUserSubset } from '../types';
@@ -16,9 +16,10 @@ export interface DataContextType {
   masterContacts: MasterContact[];
   orders: Order[];
   accountContacts: Array<{ id: string; accountId?: string; contactId?: string }>;
-  sizeTables: Record<string, any> | null;
+  sizeTables: Record<string, unknown> | null;
   usersList: FirebaseUserSubset[];
   pricing: PricingData | null;
+  setPricing: (pricing: PricingData | null) => void;
   isLoading: boolean;
   error: string | null;
 }
@@ -31,13 +32,14 @@ const DataContext = createContext<DataContextType>({
   sizeTables: null,
   usersList: [],
   pricing: null,
+  setPricing: () => {},
   isLoading: true,
   error: null
 });
 
 export const useData = () => useContext(DataContext);
 
-export const DataProvider: React.FC<{ children: React.ReactNode, db: any }> = ({ children, db }) => {
+export const DataProvider: React.FC<{ children: React.ReactNode, db: Firestore }> = ({ children, db }) => {
   const [clientAccounts, setClientAccounts] = useState<ClientAccount[]>([]);
   const [masterContacts, setMasterContacts] = useState<MasterContact[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -146,7 +148,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode, db: any }> = ({
   }, [db, user, authLoading]);
 
   return (
-    <DataContext.Provider value={{ clientAccounts, masterContacts, orders, accountContacts, sizeTables, usersList, pricing, isLoading, error }}>
+    <DataContext.Provider value={{ clientAccounts, masterContacts, orders, accountContacts, sizeTables, usersList, pricing, setPricing, isLoading, error }}>
       {children}
     </DataContext.Provider>
   );

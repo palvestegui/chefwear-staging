@@ -1,240 +1,177 @@
+import express, { Request, Response } from "express";
+import path from "path";
+import { createServer as createViteServer } from "vite";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-});
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-});
-
-import { setupMcpRoutes } from './src/server/mcp';
-import type { DocumentData } from 'firebase-admin/firestore';
-import {
-  getSummaryData,
-  getReportsData,
-  getSellersData,
-  getBottlenecksData,
-  getOrdersData,
-  getQuotesData,
-  getDirectoryData,
-  handleActionRevertOrder,
-  handleActionDeleteQuote,
-  handleActionMergeContacts,
-  handleActionCreateQuote
-} from './src/server/pulseService';
-import express from 'express';
-import path from 'path';
-import { createServer as createViteServer } from 'vite';
-import fs from 'fs';
-
-interface OrderItem {
-  quantity: number;
-  type: string;
+// Initialize Firebase Admin
+if (getApps().length === 0) {
+  initializeApp({
+    projectId: process.env.FIREBASE_PROJECT_ID || "azafran-staging"
+  });
 }
+const db = getFirestore();
 
-interface OrderData extends DocumentData {
-  docType?: string;
-  status?: string;
-  id?: string;
-  amountCollected?: string | number;
-  totalPrice?: string | number;
-  items?: any[];
-  client?: string;
-  clientName?: string;
-  contactPerson?: string;
-  customer?: string;
-  customerFirstName?: string;
-  customerLastName?: string;
-  fullName?: string;
-  contactNombre?: string;
-  productionStatus?: string;
-  shippingDetails?: {
-    city?: string;
+interface JsonRpcRequest {
+  jsonrpc: string;
+  id?: string | number;
+  method: string;
+  params?: {
+    name?: string;
+    arguments?: Record<string, unknown>;
   };
-  deliveryCity?: string;
-  createdAt?: string | number;
-  date?: string;
-  sellerName?: string;
-  sellerEmail?: string;
 }
-
-interface ContactData extends DocumentData {
-  accountId?: string;
-  fullName?: string;
-  contactNombre?: string;
-  contactApellido?: string;
-  role?: string;
-  phone?: string;
-}
-
-interface AccountData extends DocumentData {
-  accountId?: string;
-  companyName?: string;
-  accountName?: string;
-}
-
-// Helper to determine order/quote
-
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
-  
+  const PORT = process.env.NODE_ENV === "production" ? (Number(process.env.PORT) || 3000) : 3000;
+
   app.use(express.json());
 
-  // We define it as a basic Record to allow checking properties safely
-  let firebaseConfig: Record<string, string> | null = null;
-  try {
-    firebaseConfig = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf8')) as Record<string, string>;
-  } catch (e) {
-    console.warn("Could not load firebase-applet-config.json");
-  }
-
-  
-  const PULSE_KEY = process.env.AZAFRAN_PULSE_KEY || 'AZAFRAN_PULSE_2026';
-
-  app.get('/api/pulse', async (req, res) => {
-    const key = req.query['x-pulse-key'] || req.headers['x-pulse-key'];
-    if (key !== PULSE_KEY) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
+  // CORS middleware for Gemini MCP connector
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.status(204).end();
     }
-
-    if (!firebaseConfig) {
-      res.status(500).json({ error: 'Firebase configuration not found on server' });
-      return;
-    }
-
-    try {
-            const entity = req.query.entity as string;
-
-      if (entity === 'summary') {
-        const data = await getSummaryData();
-        res.json(data);
-        return;
-      }
-      if (entity === 'reports') {
-        const data = await getReportsData();
-        res.json(data);
-        return;
-      }
-      if (entity === 'sellers') {
-        const data = await getSellersData();
-        res.json(data);
-        return;
-      }
-      if (entity === 'bottlenecks') {
-        const data = await getBottlenecksData();
-        res.json(data);
-        return;
-      }
-      if (entity === 'orders') {
-        const data = await getOrdersData();
-        res.json(data);
-        return;
-      }
-      if (entity === 'quotes') {
-        const data = await getQuotesData();
-        res.json(data);
-        return;
-      }
-      if (entity === 'directory') {
-        const data = await getDirectoryData();
-        res.json(data);
-        return;
-      }
-
-      res.status(400).json({ error: 'Invalid entity' });
-    } catch (error: unknown) {
-      console.error("Pulse API Error:", error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
-    }
+    next();
   });
 
-  app.post('/api/action/:actionType', async (req, res) => {
-    const key = req.query['x-pulse-key'] || req.headers['x-pulse-key'] || req.query.key;
-    if (key !== PULSE_KEY) {
-      res.status(401).json({ error: 'Unauthorized' });
-      return;
-    }
-
-    if (!firebaseConfig) {
-      res.status(500).json({ error: 'Firebase configuration not found on server' });
-      return;
-    }
-
-    const actionType = req.params.actionType;
-    
-    try {
-      if (actionType === 'revert-order') {
-        const { orderId } = req.body;
-        if (!orderId) {
-          res.status(400).json({ error: 'orderId is required' });
-          return;
-        }
-        const data = await handleActionRevertOrder(orderId);
-        res.json(data);
-        return;
-      }
-
-      if (actionType === 'delete-quote') {
-        const { quoteId } = req.body;
-        if (!quoteId) {
-          res.status(400).json({ error: 'quoteId is required' });
-          return;
-        }
-        const data = await handleActionDeleteQuote(quoteId);
-        res.json(data);
-        return;
-      }
-
-      if (actionType === 'merge-contacts') {
-        const { sourceContactId, targetContactId } = req.body;
-        if (!sourceContactId || !targetContactId) {
-          res.status(400).json({ error: 'sourceContactId and targetContactId are required' });
-          return;
-        }
-        const data = await handleActionMergeContacts(sourceContactId, targetContactId);
-        res.json(data);
-        return;
-      }
-
-      if (actionType === 'create-quote') {
-        const quoteData = req.body;
-        if (!quoteData || !quoteData.items || !quoteData.customer) {
-          res.status(400).json({ error: 'customer and items are required' });
-          return;
-        }
-        const data = await handleActionCreateQuote(quoteData);
-        res.json(data);
-        return;
-      }
-
-      res.status(400).json({ error: 'Invalid action type' });
-    } catch (error: unknown) {
-      console.error(`Action Error [${actionType}]:`, error);
-      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
-    }
+  // Health and ping on /mcp
+  app.get("/mcp", (_req: Request, res: Response) => {
+    res.json({ status: "ok", server: "azafran-ventas-staging", protocol: "mcp" });
   });
 
-  setupMcpRoutes(app, PULSE_KEY, firebaseConfig);
+  // MCP JSON-RPC 2.0 Handler
+  app.post("/mcp", async (req: Request, res: Response) => {
+    const { id, method, params } = req.body as JsonRpcRequest;
 
+    if (method === "initialize") {
+      return res.json({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          protocolVersion: "2024-11-05",
+          capabilities: { tools: {} },
+          serverInfo: { name: "azafran-ventas-staging", version: "1.0.0" }
+        }
+      });
+    }
+
+    if (method === "notifications/initialized") {
+      return res.status(200).json({});
+    }
+
+    if (method === "tools/list") {
+      return res.json({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          tools: [
+            {
+              name: "staging_get_pricing",
+              description: "Inspect pricing/global document in Staging Firestore",
+              inputSchema: { type: "object", properties: {} }
+            },
+            {
+              name: "staging_get_orders",
+              description: "List all active orders in Staging Firestore",
+              inputSchema: { type: "object", properties: {} }
+            },
+            {
+              name: "staging_get_quotes",
+              description: "List all active quotes in Staging Firestore",
+              inputSchema: { type: "object", properties: {} }
+            },
+            {
+              name: "staging_pull_precios_config",
+              description: "Pulls config from Precios and updates Staging pricing/global",
+              inputSchema: { type: "object", properties: {} }
+            }
+          ]
+        }
+      });
+    }
+
+    if (method === "tools/call") {
+      const toolName = params?.name;
+      let toolResult: unknown;
+
+      try {
+        if (toolName === "staging_get_pricing") {
+          const docSnap = await db.collection("pricing").doc("global").get();
+          toolResult = docSnap.exists ? docSnap.data() : { error: "pricing/global not found" };
+        } else if (toolName === "staging_get_orders") {
+          const snap = await db.collection("orders").get();
+          toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } else if (toolName === "staging_get_quotes") {
+          const snap = await db.collection("quotes").get();
+          toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } else if (toolName === "staging_pull_precios_config") {
+          const configSnap = await db.collection("config").doc("system-wide-config").get();
+          if (!configSnap.exists) {
+            toolResult = { error: "Precios config/system-wide-config not found in database." };
+          } else {
+            const config = configSnap.data() as { products?: unknown[]; materials?: unknown[] } | undefined;
+            await db.collection("pricing").doc("global").set({
+              lastSyncedAt: Date.now(),
+              preciosConfigSnapshot: {
+                productsCount: (config?.products as unknown[])?.length || 0,
+                materialsCount: (config?.materials as unknown[])?.length || 0
+              }
+            }, { merge: true });
+            toolResult = { success: true, message: "Staging successfully connected to Precios config." };
+          }
+        } else {
+          toolResult = `Tool ${toolName} not found.`;
+        }
+
+        return res.json({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [{ type: "text", text: JSON.stringify(toolResult, null, 2) }]
+          }
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err);
+        return res.json({
+          jsonrpc: "2.0",
+          id,
+          error: { code: -32000, message }
+        });
+      }
+    }
+
+    return res.status(404).json({ error: "Method not found" });
+  });
+
+  // Health check
+  app.get("/api/health", (_req: Request, res: Response) => {
+    res.json({ status: "ok" });
+  });
+
+  // Vite middleware in development / static dist in production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
-      appType: "spa",
+      appType: "spa"
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    app.get("*", (_req: Request, res: Response) => {
+      res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`[Staging Server] Running at http://0.0.0.0:${PORT}`);
+    console.log(`[Staging MCP] JSON-RPC endpoint active at /mcp`);
   });
 }
 
-startServer();
+startServer().catch(console.error);
