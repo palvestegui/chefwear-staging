@@ -1,4 +1,18 @@
 ## [Unreleased]
+### Update server.ts to use Client Firestore (`server.ts`, `src/firebase.ts`)
+- **Migrated to Web SDK Firestore**:
+  - Replaced `firebase-admin` imports with client Firestore SDK (`collection`, `doc`, `getDoc`, `getDocs`, `setDoc` from `firebase/firestore`).
+  - Imported initialized `db` singleton from `src/firebase.ts`.
+  - Resolved GCP environment permission boundary issues (`PERMISSION_DENIED: Missing or insufficient permissions`) by reusing the client Firebase configuration.
+- **Protocol Verification**:
+  - `staging_get_pricing`: Reads `pricing/global` document snapshot via client SDK.
+  - `staging_get_orders`: Reads all documents from `orders` collection.
+  - `staging_get_quotes`: Reads all documents from `quotes` collection.
+  - `staging_pull_precios_config`: Connects to `config/system-wide-config` and writes snapshot to `pricing/global`.
+- **Architectural Compliance**:
+  - Single file implementation in `server.ts` (173 lines), strictly conforming to Rule 300 (<300 lines).
+  - Zero `any` types throughout.
+  - Verified with `tsc --noEmit` and `compile_applet`.
 ### Implement HTTP JSON-RPC MCP Server at /mcp in server.ts (`server.ts`)
 - **JSON-RPC 2.0 MCP Protocol Implementation**:
   - Implemented direct HTTP JSON-RPC 2.0 endpoint at `/mcp` (GET for status/health ping, POST for JSON-RPC dispatcher).

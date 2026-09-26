@@ -1,16 +1,8 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-
-// Initialize Firebase Admin
-if (getApps().length === 0) {
-  initializeApp({
-    projectId: process.env.FIREBASE_PROJECT_ID || "azafran-staging"
-  });
-}
-const db = getFirestore();
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { db } from "./src/firebase";
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -101,25 +93,28 @@ async function startServer() {
 
       try {
         if (toolName === "staging_get_pricing") {
-          const docSnap = await db.collection("pricing").doc("global").get();
-          toolResult = docSnap.exists ? docSnap.data() : { error: "pricing/global not found" };
+          const docRef = doc(db, "pricing", "global");
+          const docSnap = await getDoc(docRef);
+          toolResult = docSnap.exists() ? docSnap.data() : { error: "pricing/global not found" };
         } else if (toolName === "staging_get_orders") {
-          const snap = await db.collection("orders").get();
+          const snap = await getDocs(collection(db, "orders"));
           toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else if (toolName === "staging_get_quotes") {
-          const snap = await db.collection("quotes").get();
+          const snap = await getDocs(collection(db, "quotes"));
           toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else if (toolName === "staging_pull_precios_config") {
-          const configSnap = await db.collection("config").doc("system-wide-config").get();
-          if (!configSnap.exists) {
+          const configRef = doc(db, "config", "system-wide-config");
+          const configSnap = await getDoc(configRef);
+          if (!configSnap.exists()) {
             toolResult = { error: "Precios config/system-wide-config not found in database." };
           } else {
-            const config = configSnap.data() as { products?: unknown[]; materials?: unknown[] } | undefined;
-            await db.collection("pricing").doc("global").set({
+            const config = configSnap.data();
+            const pricingRef = doc(db, "pricing", "global");
+            await setDoc(pricingRef, {
               lastSyncedAt: Date.now(),
               preciosConfigSnapshot: {
-                productsCount: (config?.products as unknown[])?.length || 0,
-                materialsCount: (config?.materials as unknown[])?.length || 0
+                productsCount: Array.isArray(config?.products) ? config.products.length : 0,
+                materialsCount: Array.isArray(config?.materials) ? config.materials.length : 0
               }
             }, { merge: true });
             toolResult = { success: true, message: "Staging successfully connected to Precios config." };
