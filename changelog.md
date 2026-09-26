@@ -1,4 +1,14 @@
 ## [Unreleased]
+### Implement staging_update_pricing_matrix MCP Tool in server.ts (`server.ts`)
+- **Added `staging_update_pricing_matrix` Tool**:
+  - Registered in `tools/list` schema with documentation for `garments` (multi-fabric pricing dictionary: `{ [garment]: { [fabric]: { priceRaleo, priceB2B } } }`) and `catalogGarments` (array of finished catalog garments pinned to default fabrics).
+  - Configured higher Express payload limit (`express.json({ limit: "5mb" })`) to accommodate large catalog matrix updates.
+  - Implemented in `tools/call` using `setDoc(doc(db, "pricing", "global"), updatePayload, { merge: true })`, preserving existing services, UDI covenants, and metadata while updating `lastSyncedAt`.
+- **Architectural Compliance**:
+  - Single file implementation in `server.ts` (191 lines), strictly adhering to Rule 300 (<300 lines limit).
+  - Zero `any` types throughout.
+  - Verified live via JSON-RPC `tools/list` and `tools/call` over HTTP.
+  - Verified with `tsc --noEmit` and `compile_applet`.
 ### Update server.ts to use Client Firestore (`server.ts`, `src/firebase.ts`)
 - **Migrated to Web SDK Firestore**:
   - Replaced `firebase-admin` imports with client Firestore SDK (`collection`, `doc`, `getDoc`, `getDocs`, `setDoc` from `firebase/firestore`).

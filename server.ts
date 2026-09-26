@@ -18,7 +18,8 @@ async function startServer() {
   const app = express();
   const PORT = process.env.NODE_ENV === "production" ? (Number(process.env.PORT) || 3000) : 3000;
 
-  app.use(express.json());
+  // Higher payload limit for full catalog matrices
+  app.use(express.json({ limit: "5mb" }));
 
   // CORS middleware for Gemini MCP connector
   app.use((req, res, next) => {
@@ -78,9 +79,21 @@ async function startServer() {
               inputSchema: { type: "object", properties: {} }
             },
             {
-              name: "staging_pull_precios_config",
-              description: "Pulls config from Precios and updates Staging pricing/global",
-              inputSchema: { type: "object", properties: {} }
+              name: "staging_update_pricing_matrix",
+              description: "Updates garments (Tarifario Base) and catalogGarments (Catálogo Maestro) in Staging pricing/global with { merge: true }",
+              inputSchema: {
+                type: "object",
+                properties: {
+                  garments: {
+                    type: "object",
+                    description: "Multi-fabric pricing dictionary: { [garment]: { [fabric]: { priceRaleo, priceB2B } } }"
+                  },
+                  catalogGarments: {
+                    type: "array",
+                    description: "Array of finished catalog garments pinned to default fabrics"
+                  }
+                }
+              }
             }
           ]
         }
@@ -89,6 +102,7 @@ async function startServer() {
 
     if (method === "tools/call") {
       const toolName = params?.name;
+      const args = params?.arguments || {};
       let toolResult: unknown;
 
       try {
@@ -102,23 +116,27 @@ async function startServer() {
         } else if (toolName === "staging_get_quotes") {
           const snap = await getDocs(collection(db, "quotes"));
           toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        } else if (toolName === "staging_pull_precios_config") {
-          const configRef = doc(db, "config", "system-wide-config");
-          const configSnap = await getDoc(configRef);
-          if (!configSnap.exists()) {
-            toolResult = { error: "Precios config/system-wide-config not found in database." };
-          } else {
-            const config = configSnap.data();
-            const pricingRef = doc(db, "pricing", "global");
-            await setDoc(pricingRef, {
-              lastSyncedAt: Date.now(),
-              preciosConfigSnapshot: {
-                productsCount: Array.isArray(config?.products) ? config.products.length : 0,
-                materialsCount: Array.isArray(config?.materials) ? config.materials.length : 0
-              }
-            }, { merge: true });
-            toolResult = { success: true, message: "Staging successfully connected to Precios config." };
+        } else if (toolName === "staging_update_pricing_matrix") {
+          const updatePayload: Record<string, unknown> = {
+            lastSyncedAt: Date.now()
+          };
+
+          if (args.garments && typeof args.garments === "object") {
+            updatePayload.garments = args.garments;
           }
+          if (Array.isArray(args.catalogGarments)) {
+            updatePayload.catalogGarments = args.catalogGarments;
+          }
+
+          const pricingRef = doc(db, "pricing", "global");
+          await setDoc(pricingRef, updatePayload, { merge: true });
+
+          toolResult = {
+            success: true,
+            hasGarments: Boolean(args.garments),
+            hasCatalogGarments: Array.isArray(args.catalogGarments),
+            message: "Staging pricing/global successfully updated with { merge: true }."
+          };
         } else {
           toolResult = `Tool ${toolName} not found.`;
         }
