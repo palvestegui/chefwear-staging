@@ -21,15 +21,52 @@ async function startServer() {
   // Higher payload limit for full catalog matrices
   app.use(express.json({ limit: "5mb" }));
 
-  // CORS middleware for Gemini MCP connector
-  app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  // CORS middleware for Precios sync and Gemini MCP connector
+  app.use((req: Request, res: Response, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
     if (req.method === "OPTIONS") {
-      return res.status(204).end();
+      return res.sendStatus(200);
     }
     next();
+  });
+
+  // Direct pricing sync ingestion endpoint
+  app.post("/api/pricing/sync", async (req: Request, res: Response) => {
+    try {
+      const { garments, catalogGarments, lastSyncedAt } = (req.body || {}) as {
+        garments?: Record<string, unknown>;
+        catalogGarments?: unknown;
+        lastSyncedAt?: number;
+      };
+
+      if (!garments && !catalogGarments) {
+        return res.status(400).json({
+          success: false,
+          error: "Payload missing garments or catalogGarments"
+        });
+      }
+
+      const payload: Record<string, unknown> = {
+        lastSyncedAt: lastSyncedAt || Date.now()
+      };
+      if (garments) payload.garments = garments;
+      if (catalogGarments) payload.catalogGarments = catalogGarments;
+
+      // Direct write using Ventas' own authenticated Firestore instance
+      await setDoc(doc(db, "pricing", "global"), payload, { merge: true });
+
+      return res.json({
+        success: true,
+        message: "Pricing snapshot successfully synchronized into Ventas",
+        updatedAt: payload.lastSyncedAt
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("Error syncing pricing to Ventas:", message);
+      return res.status(500).json({ success: false, error: message });
+    }
   });
 
   // Health and ping on /mcp
@@ -63,6 +100,11 @@ async function startServer() {
         id,
         result: {
           tools: [
+            {
+              name: "staging_get_bundle",
+              description: "Aggregated bundle fetching pricing/global, active orders, and active quotes in a single call",
+              inputSchema: { type: "object", properties: {} }
+            },
             {
               name: "staging_get_pricing",
               description: "Inspect pricing/global document in Staging Firestore",
@@ -106,7 +148,32 @@ async function startServer() {
       let toolResult: unknown;
 
       try {
-        if (toolName === "staging_get_pricing") {
+        if (toolName === "staging_get_bundle") {
+          const [pricingSnap, ordersSnap, quotesSnap] = await Promise.all([
+            getDoc(doc(db, "pricing", "global")),
+            getDocs(collection(db, "orders")),
+            getDocs(collection(db, "quotes"))
+          ]);
+
+          const pricing = pricingSnap.exists() ? pricingSnap.data() : null;
+          const allOrders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const activeOrders = allOrders.filter(
+            (o: Record<string, unknown>) => o.status !== "Cancelado"
+          );
+          const quotes = quotesSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const lastSyncedAt = typeof pricing?.lastSyncedAt === "number" ? pricing.lastSyncedAt : Date.now();
+
+          toolResult = {
+            pricing,
+            orders: activeOrders,
+            quotes,
+            summary: {
+              activeOrdersCount: activeOrders.length,
+              quotesCount: quotes.length,
+              lastSyncedAt
+            }
+          };
+        } else if (toolName === "staging_get_pricing") {
           const docRef = doc(db, "pricing", "global");
           const docSnap = await getDoc(docRef);
           toolResult = docSnap.exists() ? docSnap.data() : { error: "pricing/global not found" };
@@ -117,25 +184,23 @@ async function startServer() {
           const snap = await getDocs(collection(db, "quotes"));
           toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else if (toolName === "staging_update_pricing_matrix") {
-          const updatePayload: Record<string, unknown> = {
-            lastSyncedAt: Date.now()
-          };
+          const docRef = doc(db, "pricing", "global");
+          const docSnap = await getDoc(docRef);
+          const currentData = docSnap.exists() ? docSnap.data() : {};
 
           if (args.garments && typeof args.garments === "object") {
-            updatePayload.garments = args.garments;
+            currentData.garments = args.garments;
           }
           if (Array.isArray(args.catalogGarments)) {
-            updatePayload.catalogGarments = args.catalogGarments;
+            currentData.catalogGarments = args.catalogGarments;
           }
+          currentData.lastSyncedAt = Date.now();
 
-          const pricingRef = doc(db, "pricing", "global");
-          await setDoc(pricingRef, updatePayload, { merge: true });
+          await setDoc(docRef, currentData);
 
           toolResult = {
             success: true,
-            hasGarments: Boolean(args.garments),
-            hasCatalogGarments: Array.isArray(args.catalogGarments),
-            message: "Staging pricing/global successfully updated with { merge: true }."
+            message: "Staging pricing/global successfully refreshed. Garments map replaced cleanly."
           };
         } else {
           toolResult = `Tool ${toolName} not found.`;

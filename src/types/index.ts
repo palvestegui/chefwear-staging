@@ -77,6 +77,8 @@ export interface OrderLogo {
 
 export interface OrderItem {
   name: string;
+  sku?: string;
+  fabricSku?: string;
   fabric?: string;
   fabricColor?: string;
   qty: number;
@@ -223,7 +225,7 @@ export interface PricingData {
   specialPresets?: Record<string, any>;
   garments?: Record<string, any>;
   udiPricing?: Record<string, any>;
-  catalogGarments?: Record<string, CatalogGarmentPricing>;
+  catalogGarments?: Record<string, CatalogGarmentPricing> | CatalogGarmentPricing[];
 }
 
 export * from './pricing';

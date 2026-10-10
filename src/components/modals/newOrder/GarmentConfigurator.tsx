@@ -4,6 +4,7 @@ import { GarmentSizingSection } from './GarmentSizingSection';
 import { ImageIcon, Trash2 } from 'lucide-react';
 import { isServiceApplicable } from '../../../utils/serviceUtils';
 import { calculateVolumeScaledServiceUnitPrice } from '../../../utils/pricingCalculator';
+import { findGarmentMetadata, getSortedFabricsForGarment } from '../../../domains/pricing/pricingResolver';
 import { useAuth } from '../../../contexts/AuthContext';
 import { requiredFields, fieldLabels } from '../../../utils/constants';
 
@@ -49,24 +50,33 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
       const udiDict = pricing?.udiPricing || pricing?.specialPresets?.['UDI Especial'] || {};
       const validGarments = ['Uniforme Completo UDI', ...Object.keys(udiDict)];
       if (!validGarments.includes(currentItem.name)) {
+        const meta = findGarmentMetadata(pricing, 'Uniforme Completo UDI', 'CONJUNTO COMPLETO');
         setCurrentItem((prev: any) => ({
-          ...prev,
-          name: 'Uniforme Completo UDI',
-          fabric: 'CONJUNTO COMPLETO',
-          fabricColor: ''
+          ...prev, name: 'Uniforme Completo UDI', fabric: 'CONJUNTO COMPLETO', sku: meta.sku, fabricSku: meta.fabricSku, fabricColor: ''
         }));
       } else if (currentItem.name === 'Uniforme Completo UDI' && currentItem.fabric !== 'CONJUNTO COMPLETO') {
-        setCurrentItem((prev: any) => ({
-          ...prev,
-          fabric: 'CONJUNTO COMPLETO'
-        }));
+        const meta = findGarmentMetadata(pricing, 'Uniforme Completo UDI', 'CONJUNTO COMPLETO');
+        setCurrentItem((prev: any) => ({ ...prev, fabric: 'CONJUNTO COMPLETO', sku: meta.sku, fabricSku: meta.fabricSku }));
       }
     } else if (currentItem.name === 'Uniforme Completo UDI') {
       if (currentItem.fabric !== 'CONJUNTO COMPLETO') {
-        setCurrentItem((prev: any) => ({ ...prev, fabric: 'CONJUNTO COMPLETO' }));
+        const meta = findGarmentMetadata(pricing, 'Uniforme Completo UDI', 'CONJUNTO COMPLETO');
+        setCurrentItem((prev: any) => ({ ...prev, fabric: 'CONJUNTO COMPLETO', sku: meta.sku, fabricSku: meta.fabricSku }));
+      }
+    } else if (currentItem.name) {
+      const presetFabrics = activePresetKey && specialPresets[activePresetKey]?.[currentItem.name] ? Object.keys(specialPresets[activePresetKey][currentItem.name]) : null;
+      const { sortedFabrics, primaryFabric } = getSortedFabricsForGarment(pricing, currentItem.name, presetFabrics);
+      if (primaryFabric && (!currentItem.fabric || !sortedFabrics.includes(currentItem.fabric))) {
+        const meta = findGarmentMetadata(pricing, currentItem.name, primaryFabric);
+        setCurrentItem((prev: any) => ({
+          ...prev,
+          fabric: primaryFabric,
+          sku: meta.sku || prev.sku,
+          fabricSku: meta.fabricSku || prev.fabricSku
+        }));
       }
     }
-  }, [isUdiMode, currentItem.name, pricing]);
+  }, [isUdiMode, currentItem.name, pricing, activePresetKey]);
 
   const getFilteredRelevantServices = () => {
     return pricing.services?.filter((srv: any) => {
@@ -93,7 +103,17 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
             let fabric = '';
             if (name === 'Uniforme Completo UDI') fabric = 'CONJUNTO COMPLETO';
             else fabric = Object.keys(udiDict[name] || {})[0] || 'Drill de 8oz';
-            setCurrentItem({...currentItem, name, fabric, measurements: {}, services: [], fabricColor: ''});
+            const meta = findGarmentMetadata(pricing, name, fabric);
+            setCurrentItem({
+              ...currentItem,
+              name,
+              fabric,
+              sku: meta.sku,
+              fabricSku: meta.fabricSku,
+              measurements: {},
+              services: [],
+              fabricColor: ''
+            });
           }} className="bg-stone-900 border border-stone-800 p-3 rounded-xl font-bold text-xs text-stone-300 outline-none">
             <option value="Uniforme Completo UDI">Uniforme Completo UDI</option>
             {Object.keys(pricing?.udiPricing || pricing?.specialPresets?.['UDI Especial'] || {}).map(k => <option key={k} value={k}>{k}</option>)}
@@ -114,29 +134,39 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
             <select value={currentItem.name} onChange={e => {
               const name = e.target.value;
               const presetFabrics = activePresetKey && specialPresets[activePresetKey]?.[name] ? Object.keys(specialPresets[activePresetKey][name]) : null;
-              const baseFabrics = Object.keys(pricing.garments?.[name] || {}).filter(f => {
-                if (name === 'Gorro' && (f.includes('Tornado') || f.includes('1ra'))) return false;
-                return true;
+              const { sortedFabrics, primaryFabric } = getSortedFabricsForGarment(pricing, name, presetFabrics);
+              const fabric = primaryFabric || sortedFabrics[0] || '';
+              const meta = findGarmentMetadata(pricing, name, fabric);
+              setCurrentItem({
+                ...currentItem,
+                name,
+                fabric,
+                sku: meta.sku,
+                fabricSku: meta.fabricSku,
+                measurements: {},
+                services: []
               });
-              const fabric = (presetFabrics && presetFabrics[0]) || baseFabrics[0] || '';
-              setCurrentItem({...currentItem, name, fabric, measurements: {}, services: []});
             }} className="bg-stone-900 border border-stone-800 p-3 rounded-xl font-bold text-xs text-stone-300 outline-none">
               {(() => {
                 const presetGarments = activePresetKey && specialPresets[activePresetKey] ? Object.keys(specialPresets[activePresetKey]) : [];
                 const allGarments = Array.from(new Set([...presetGarments, ...Object.keys(pricing.garments || {})]));
-                return allGarments.map(k => <option key={k} value={k}>{k}</option>);
+                return allGarments.sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })).map(k => <option key={k} value={k}>{k}</option>);
               })()}
             </select>
-            <select value={currentItem.fabric} onChange={e => setCurrentItem({...currentItem, fabric: e.target.value})} className="bg-stone-900 border border-stone-800 p-3 rounded-xl font-bold text-xs text-stone-300 outline-none">
+            <select value={currentItem.fabric} onChange={e => {
+              const fabric = e.target.value;
+              const meta = findGarmentMetadata(pricing, currentItem.name, fabric);
+              setCurrentItem({
+                ...currentItem,
+                fabric,
+                sku: meta.sku || currentItem.sku,
+                fabricSku: meta.fabricSku
+              });
+            }} className="bg-stone-900 border border-stone-800 p-3 rounded-xl font-bold text-xs text-stone-300 outline-none">
               {(() => {
                 const presetFabrics = activePresetKey && specialPresets[activePresetKey]?.[currentItem.name] ? Object.keys(specialPresets[activePresetKey][currentItem.name]) : null;
-                if (presetFabrics && presetFabrics.length > 0) {
-                  return presetFabrics.map(k => <option key={k} value={k}>{k}</option>);
-                }
-                return Object.keys(pricing.garments?.[currentItem.name] || {}).map(k => {
-                  if (currentItem.name === 'Gorro' && (k.includes('Tornado') || k.includes('1ra'))) return null;
-                  return <option key={k} value={k}>{k}</option>;
-                });
+                const { sortedFabrics } = getSortedFabricsForGarment(pricing, currentItem.name, presetFabrics);
+                return sortedFabrics.map(k => <option key={k} value={k}>{k}</option>);
               })()}
             </select>
           </div>
@@ -366,10 +396,47 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
             }
           }
 
-          if (orderHeaderMode === 'Orden Activa') {
-            if (!isUdiMode && (!itemToAdd.fabricColor || itemToAdd.fabricColor.trim() === '')) {
-              return alert("Por favor, ingrese el color de la tela (el campo es obligatorio).");
+          // 1. Mandatory Pocket Name Check
+          if (itemToAdd.services?.includes('Nombre en el bolsillo')) {
+            if (!itemToAdd.pocketName || itemToAdd.pocketName.trim() === '') {
+              alert("⚠️ No ingresaste el nombre para el bordado en el bolsillo.\n\nPor favor, escribe el nombre exacto antes de agregar la prenda al pedido.");
+              return;
             }
+          }
+
+          // 2. Mandatory Custom Pocket Specs Check
+          if (itemToAdd.services?.includes('Bolsillos personalizados')) {
+            if (!itemToAdd.customPocketDetails || itemToAdd.customPocketDetails.trim() === '') {
+              alert("⚠️ No ingresaste el detalle para los bolsillos personalizados.\n\nPor favor, especifica la personalización antes de agregar la prenda.");
+              return;
+            }
+          }
+
+          // 3. Mandatory Custom Service Prices Check
+          const relevantServices = getFilteredRelevantServices();
+          const servicesWithMissingPrices = (itemToAdd.services || []).filter((s: string) => {
+            const isEditableService = relevantServices.some((rs: { name?: string; type?: string; price?: number | null }) => 
+              rs.name === s && (rs.type === 'Costo Adicional Editable' || rs.price === null || rs.price === undefined)
+            );
+            if (!isEditableService) return false;
+            const price = itemToAdd.customServicePrices?.[s];
+            return price === undefined || price === null || isNaN(Number(price));
+          });
+
+          if (servicesWithMissingPrices.length > 0) {
+            alert(`⚠️ Faltan precios por definir:\n\nDebes ingresar el monto en Bs para: ${servicesWithMissingPrices.join(', ')}`);
+            return;
+          }
+
+          // 4. Mandatory Fabric Color Check (Active orders)
+          if (orderHeaderMode === 'Orden Activa' && !isUdiMode) {
+            if (!itemToAdd.fabricColor || itemToAdd.fabricColor.trim() === '') {
+              alert("⚠️ Por favor, ingresa el color de la tela (el campo es obligatorio).");
+              return;
+            }
+          }
+
+          if (orderHeaderMode === 'Orden Activa') {
 
             // Enforce 8 Filipina measurements when Ventas role is active
             const isFilipina = (itemToAdd.name || '').toLowerCase().includes('filipina') || itemToAdd.name === 'Uniforme Completo UDI';

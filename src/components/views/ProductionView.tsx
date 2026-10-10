@@ -5,9 +5,10 @@ const {
   ImageIcon, FileText, CheckCircle, Lock, Building2, User, Users, ChevronDown, ChevronUp
 } = LucideIcons;
 import { StatusBadge } from '../ui/StatusBadge';
-import { consolidateCommercialItems } from '../../utils/orderItemConsolidation';
+import { consolidateCommercialItems, resolveItemEmbroideries } from '../../utils/orderItemConsolidation';
 import { useData } from '../../contexts/DataContext';
 import { detectServiceExclusionConflicts } from '../../utils/serviceUtils';
+import { isUpperTailored, isLowerTailored, isTailored, isBundleGarment, getMeasurementButtonLabel, getMeasurementPoints } from '../../utils/garmentMeasurementUtils';
 
 export interface ProductionViewProps {
   orders: any[];
@@ -22,48 +23,39 @@ export interface ProductionViewProps {
 const hasValues = (obj: any) => obj && Object.values(obj).some((v: any) => v !== undefined && v !== null && String(v).trim() !== '' && String(v).trim() !== '0');
 
 const getGarmentSpecs = (order: any, item: any) => {
-  const filSibling = (order.items || []).find((it: any) => it.name?.toLowerCase().includes('filipina'));
+  const isBundle = isBundleGarment(item.name);
+  const isFilipina = isUpperTailored(item.name);
+  const isPantalon = isLowerTailored(item.name);
+  const isTailoredGarment = isTailored(item.name);
+
+  if (!isTailoredGarment) {
+    return { filMeasurements: null, panMeasurements: null, showFil: false, showPan: false, isCustom: false, hasDirectSpecs: false };
+  }
+
+  const filSibling = (order.items || []).find((it: any) => isUpperTailored(it.name));
   const filMeasurements = (filSibling?.measurements && Object.keys(filSibling.measurements).length > 0)
     ? filSibling.measurements
-    : (item.name?.toLowerCase().includes('filipina') && item.measurements ? item.measurements : (order.measurements?.filipina || order.measurements || order.contact?.measurements?.filipina || order.contact?.measurements || null));
+    : (isFilipina && item.measurements ? item.measurements : (order.measurements?.filipina || order.measurements || order.contact?.measurements?.filipina || order.contact?.measurements || null));
 
-  const panSibling = (order.items || []).find((it: any) => it.name?.toLowerCase().includes('pantalon') || it.name?.toLowerCase().includes('pantalón'));
+  const panSibling = (order.items || []).find((it: any) => isLowerTailored(it.name));
   const panMeasurements = (panSibling?.measurements && Object.keys(panSibling.measurements).length > 0)
     ? panSibling.measurements
-    : ((item.name?.toLowerCase().includes('pantalon') || item.name?.toLowerCase().includes('pantalón')) && item.measurements ? item.measurements : (order.measurements?.pantalon || order.measurements || order.contact?.measurements?.pantalon || order.contact?.measurements || null));
+    : (isPantalon && item.measurements ? item.measurements : (order.measurements?.pantalon || order.measurements || order.contact?.measurements?.pantalon || order.contact?.measurements || null));
 
   const hasFilSpecs = hasValues(filMeasurements);
   const hasPanSpecs = hasValues(panMeasurements);
   const hasDirectSpecs = hasValues(item.measurements);
   
-  const isBundle = item.name?.toLowerCase().includes('completo udi');
-  const isFilipina = item.name?.toLowerCase().includes('filipina');
-  const isPantalon = item.name?.toLowerCase().includes('pantal');
-  
   const showFil = hasFilSpecs && (isBundle || isFilipina);
   const showPan = hasPanSpecs && (isBundle || isPantalon);
-  
-  const isCustom = showFil || showPan || (hasDirectSpecs && !isFilipina && !isPantalon && !isBundle);
+  const isCustom = showFil || showPan || (hasDirectSpecs && (isBundle || isFilipina || isPantalon));
   
   return { filMeasurements, panMeasurements, showFil, showPan, isCustom, hasDirectSpecs };
 };
 
+
 const MobileMeasurementGrid = ({ label, specs, isPan, colsOverride }: { label: string, specs: any, isPan?: boolean, colsOverride?: string }) => {
-  const points = isPan ? [
-    { k: 'Cintura', v: specs.cintura || specs.P_Cintura },
-    { k: 'Cadera', v: specs.cadera || specs.P_Cadera },
-    { k: 'Ancho Pierna', v: specs.anchoPierna || specs.P_Ancho_Pierna },
-    { k: 'Largo Pierna', v: specs.largoPierna || specs.P_Largo_Pierna }
-  ] : [
-    { k: 'Hombros', v: specs.hombros || specs.F_Hombros },
-    { k: 'Cuello', v: specs.cuello || specs.F_Cuello },
-    { k: 'Pecho', v: specs.anchoTorso || specs.F_Ancho_Torso },
-    { k: 'Largo Torso', v: specs.largoTorso || specs.F_Largo_Torso },
-    { k: 'Cintura', v: specs.cintura || specs.F_Cintura },
-    { k: 'Cadera', v: specs.cadera || specs.F_Cadera },
-    { k: 'Largo Brazo', v: specs.largoBrazo || specs.F_Largo_Brazo },
-    { k: 'Ancho Brazo', v: specs.anchoBrazo || specs.F_Ancho_Brazo }
-  ];
+  const points = getMeasurementPoints(specs, isPan);
 
   return (
     <div>
@@ -81,21 +73,7 @@ const MobileMeasurementGrid = ({ label, specs, isPan, colsOverride }: { label: s
 };
 
 const DesktopMeasurementInline = ({ label, specs, isPan }: { label: string, specs: any, isPan?: boolean }) => {
-  const points = isPan ? [
-    { k: 'Cintura', v: specs.cintura || specs.P_Cintura },
-    { k: 'Cadera', v: specs.cadera || specs.P_Cadera },
-    { k: 'Ancho Pierna', v: specs.anchoPierna || specs.P_Ancho_Pierna },
-    { k: 'Largo Pierna', v: specs.largoPierna || specs.P_Largo_Pierna }
-  ] : [
-    { k: 'Hombros', v: specs.hombros || specs.F_Hombros },
-    { k: 'Cuello', v: specs.cuello || specs.F_Cuello },
-    { k: 'Pecho', v: specs.anchoTorso || specs.F_Ancho_Torso },
-    { k: 'Largo Torso', v: specs.largoTorso || specs.F_Largo_Torso },
-    { k: 'Cintura', v: specs.cintura || specs.F_Cintura },
-    { k: 'Cadera', v: specs.cadera || specs.F_Cadera },
-    { k: 'Largo Brazo', v: specs.largoBrazo || specs.F_Largo_Brazo },
-    { k: 'Ancho Brazo', v: specs.anchoBrazo || specs.F_Ancho_Brazo }
-  ];
+  const points = getMeasurementPoints(specs, isPan);
 
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono text-stone-300">
@@ -215,35 +193,48 @@ export const ProductionView: React.FC<ProductionViewProps> = (props) => {
                       })()}
                     </div>
                     <div>
-                      {isCustom ? (
+                      {isTailored(item.name) && isCustom ? (
                         <button onClick={() => toggleMeasurements(k)} className="flex items-center gap-1 bg-stone-900 hover:bg-stone-800 border border-amber-500/40 text-amber-500 px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider transition">
-                          <Ruler size={10}/> 8 Medidas {expandedMeasurements[k] ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
+                          <Ruler size={10}/> {getMeasurementButtonLabel(item.name)} {expandedMeasurements[k] ? <ChevronUp size={12}/> : <ChevronDown size={12}/>}
                         </button>
-                      ) : (
+                      ) : isTailored(item.name) ? (
                         <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-2 py-1 rounded inline-block">
                           Talla: {item.size || 'STD'}
                         </span>
+                      ) : (
+                        <span className="text-xs font-mono text-stone-500">—</span>
                       )}
                     </div>
                     <div className="text-xs text-amber-500/90 italic truncate max-w-[150px]">
-                      {item.embroideries?.join(', ') || (isFirst ? order.notes : '') || '—'}
+                      {(() => {
+                        const embs = resolveItemEmbroideries(item);
+                        const text = embs.length > 0 ? embs.join(', ') : ((isFirst ? order.notes : '') || '—');
+                        const hasWarning = embs.some(e => e.startsWith('⚠️'));
+                        const hasPocket = embs.some(e => e.toLowerCase().includes('bolsillo') || e.toLowerCase().includes('nombre'));
+                        return (
+                          <span
+                            className={
+                              hasWarning
+                                ? 'bg-red-950/60 border border-red-500/40 text-red-400 font-black px-1.5 py-0.5 rounded inline-block text-[10px]'
+                                : hasPocket
+                                ? 'font-bold text-amber-400'
+                                : ''
+                            }
+                            title={text}
+                          >
+                            {text}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div>
                       {isFirst && <ActionButtons order={order} isInstitutional={isInst} />}
                     </div>
                   </div>
-                  {expandedMeasurements[k] && isCustom && (
+                  {expandedMeasurements[k] && isCustom && isTailored(item.name) && (
                     <div className="bg-stone-950 p-3 border-t border-stone-800/80 flex flex-col gap-2">
                       {showFil && <DesktopMeasurementInline label="👘 FILIPINA" specs={filMeasurements} />}
                       {showPan && <DesktopMeasurementInline label="👖 PANTALÓN" specs={panMeasurements} isPan />}
-                      {(!showFil && !showPan && hasDirectSpecs) && (
-                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-mono text-stone-300">
-                           <span className="font-black text-amber-500 uppercase">MEDIDAS:</span>
-                           {Object.entries(item.measurements).filter(([_, v]) => v && String(v).trim() !== '' && String(v).trim() !== '0').map(([mk, mv]) => (
-                             <span key={mk} className="whitespace-nowrap"><span className="text-stone-500 uppercase">{mk}:</span> <span className="text-amber-400 font-bold">{String(mv)} cm</span></span>
-                           ))}
-                         </div>
-                      )}
                     </div>
                   )}
                   {isInst && expandedRosterOrderId === order.id && isFirst && (
@@ -367,12 +358,12 @@ export const ProductionView: React.FC<ProductionViewProps> = (props) => {
                             </button>
                           )
                         )}
-                        {isCustom && (
+                        {isTailored(item.name) && isCustom && (
                           <button
                             onClick={() => toggleMeasurements(k)}
                             className="h-7 px-2.5 text-[10px] text-amber-400 bg-amber-950/40 hover:bg-amber-900/60 border border-amber-500/40 rounded-lg font-black uppercase tracking-wider flex items-center gap-1 transition"
                           >
-                            📏 Medidas {expandedMeasurements[k] ? '▴' : '▾'}
+                            📏 {getMeasurementButtonLabel(item.name)} {expandedMeasurements[k] ? '▴' : '▾'}
                           </button>
                         )}
                       </div>
@@ -393,7 +384,7 @@ export const ProductionView: React.FC<ProductionViewProps> = (props) => {
                         </div>
                       )}
 
-                      {expandedMeasurements[k] && isCustom && (
+                      {expandedMeasurements[k] && isCustom && isTailored(item.name) && (
                         <div className="bg-stone-950/90 border border-amber-500/30 p-2.5 sm:p-3 rounded-xl w-full mt-2">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
                             {showFil && (
@@ -406,39 +397,60 @@ export const ProductionView: React.FC<ProductionViewProps> = (props) => {
                                 <MobileMeasurementGrid label="👖 PANTALÓN" specs={panMeasurements} isPan={true} colsOverride="grid-cols-2 sm:grid-cols-4 landscape:grid-cols-4" />
                               </div>
                             )}
-                            {(!showFil && !showPan && hasDirectSpecs) && (
-                              <div className="w-full col-span-full">
-                                <span className="text-[10px] font-black text-amber-500 mb-1.5 block">MEDIDAS</span>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 landscape:grid-cols-4 gap-1.5 w-full">
-                                  {Object.entries(item.measurements).filter(([_, v]) => v && String(v).trim() !== '' && String(v).trim() !== '0').map(([mk, mv]) => (
-                                    <div key={mk} className="bg-stone-900/90 border border-stone-800/80 rounded-md p-1.5 flex flex-col items-center justify-center text-center w-full">
-                                      <span className="text-[9px] font-bold text-stone-400 uppercase whitespace-normal leading-tight block">{mk}</span>
-                                      <span className="text-xs font-mono font-black text-amber-400 whitespace-nowrap mt-0.5">{String(mv)} cm</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
                           </div>
                         </div>
                       )}
                       
-                      {!isCustom && (
+                      {(!isCustom || !isTailored(item.name)) && (
                         <div className="mt-2 w-full">
-                          <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-2.5 py-1 rounded-md inline-block">
-                            Talla: {item.size || 'STD'}
-                          </span>
+                          {isTailored(item.name) ? (
+                            <span className="text-xs font-mono font-black text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-2.5 py-1 rounded-md inline-block">
+                              Talla: {item.size || 'STD'}
+                            </span>
+                          ) : (
+                            <span className="text-xs font-mono text-stone-500">—</span>
+                          )}
                         </div>
                       )}
 
-                      {item.embroideries && item.embroideries.length > 0 && (
-                        <div className="bg-stone-900/60 p-2 rounded-lg border border-stone-800 mt-2 w-full">
-                          <div className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Bordados</div>
-                          <div className="text-[10px] text-amber-400/90 font-bold truncate">
-                            {item.embroideries.join(', ')}
+                      {(() => {
+                        const embs = resolveItemEmbroideries(item);
+                        if (embs.length === 0) return null;
+                        return (
+                          <div className="bg-stone-900/60 p-2.5 rounded-lg border border-stone-800 mt-2 w-full">
+                            <div className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Bordados Requeridos</div>
+                            <div className="text-[10px] space-y-0.5">
+                              {embs.map((emb: string, eIdx: number) => {
+                                const isWarning = emb.startsWith('⚠️');
+                                const isBolsillo = emb.toLowerCase().includes('bolsillo') || emb.toLowerCase().includes('nombre');
+                                return (
+                                  <div
+                                    key={eIdx}
+                                    className={`flex items-center gap-1.5 font-bold ${
+                                      isWarning
+                                        ? 'bg-red-950/60 border border-red-500/40 text-red-400 font-black px-1.5 py-0.5 rounded'
+                                        : isBolsillo
+                                        ? 'text-amber-400 font-extrabold'
+                                        : 'text-stone-300'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                        isWarning
+                                          ? 'bg-red-500 animate-ping'
+                                          : isBolsillo
+                                          ? 'bg-amber-400 animate-pulse'
+                                          : 'bg-stone-600'
+                                      }`}
+                                    ></span>
+                                    <span>{emb}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                   </div>
                 );

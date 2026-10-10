@@ -18,6 +18,8 @@ import { collapseUdiItems } from './udiPackageUtils';
 import { consolidateCommercialItems } from './orderItemConsolidation';
 import { calculateUdiPackageDiscount } from '../domains/udi/udiBundleEngine';
 
+import { getGarmentPriceValue as resolveGarmentPriceValue, resolveGarmentPrice, findGarmentMetadata, getSortedFabricsForGarment } from '../domains/pricing/pricingResolver';
+
 export {
   calculateVolumeScaledServiceUnitPrice,
   isSubcontractedEmbroideryService,
@@ -26,41 +28,14 @@ export {
   collapseUdiItems,
   consolidateCommercialItems,
   getPricingTierFromClientType,
-  resolveOrderTier
+  resolveOrderTier,
+  resolveGarmentPrice,
+  findGarmentMetadata,
+  getSortedFabricsForGarment
 };
 
-export const getGarmentPriceValue = (garmentsObj: any, garmentName: string, fabricName: string, isB2B: boolean): number => {
-  if (!garmentsObj || !garmentName || !fabricName) return 0;
-  
-  let garmentKey = garmentName;
-  if (!garmentsObj[garmentKey]) {
-    const foundGKey = Object.keys(garmentsObj).find(k => k.toLowerCase() === garmentName.toLowerCase());
-    if (foundGKey) garmentKey = foundGKey;
-    else return 0;
-  }
-
-  const gObj = garmentsObj[garmentKey];
-  if (!gObj) return 0;
-
-  let val = gObj[fabricName];
-  if (val === undefined || val === null) {
-    const foundFKey = Object.keys(gObj).find(f => f.toLowerCase() === fabricName.toLowerCase());
-    if (foundFKey) val = gObj[foundFKey];
-  }
-
-  if ((val === undefined || val === null) && Object.keys(gObj).length > 0) {
-    val = Object.values(gObj)[0];
-  }
-
-  if (val === undefined || val === null) return 0;
-  if (typeof val === 'number') return val;
-  if (typeof val === 'object' && val !== null) {
-    if (isB2B) {
-      return val.priceB2B !== undefined && val.priceB2B !== null ? Number(val.priceB2B) : (Number(val.priceRaleo) || 0);
-    }
-    return val.priceRaleo !== undefined && val.priceRaleo !== null ? Number(val.priceRaleo) : (Number(val.priceB2B) || 0);
-  }
-  return 0;
+export const getGarmentPriceValue = (garmentsObj: unknown, garmentName: string, fabricName: string, isB2B: boolean, sku?: string, fabricSku?: string): number => {
+  return resolveGarmentPriceValue(garmentsObj, garmentName, fabricName, isB2B, sku, fabricSku);
 };
 
 export interface DiscountEngineResult {

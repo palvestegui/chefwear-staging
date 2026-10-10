@@ -1,4 +1,173 @@
 ## [Unreleased]
+### Strict Pre-Cart Modal Validation and Workshop Incomplete Order Badges (`GarmentConfigurator.tsx`, `orderItemConsolidation.ts`, `OperationsView.tsx`, `ProductionView.tsx`)
+- **Strict Pre-Flight Validation Gates (`GarmentConfigurator.tsx`)**:
+  - Gated `handleAddItem` with 4 mandatory field validations:
+    * **Pocket Name**: Blocks adding garment if `Nombre en el bolsillo` is selected but `pocketName` is empty.
+    * **Custom Pocket Specs**: Blocks adding garment if `Bolsillos personalizados` is selected but `customPocketDetails` is empty.
+    * **Editable Service Prices**: Inspects applicable services and blocks if any editable/additional cost service lacks a defined numeric price in `customServicePrices`.
+    * **Fabric Color**: Blocks adding garment in `Orden Activa` mode (non-UDI) if `fabricColor` is empty.
+  - Zero Guessing Policy: Replaced silent fallback with explicit alert modals naming the exact missing field.
+- **Explicit Workshop Incomplete Order Alert (`orderItemConsolidation.ts`)**:
+  - In `resolveItemEmbroideries`, if `"Nombre en el bolsillo"` is present in services or embroideries but `pocketName` is empty, emits `⚠️ FALTA NOMBRE EN BOLSILLO (NO ESPECIFICADO)`.
+- **Warning Badge Highlighting (`OperationsView.tsx` & `ProductionView.tsx`)**:
+  - Styled badges beginning with `⚠️` using warning styling (`bg-red-950/60 border-red-500/40 text-red-400 font-black animate-ping indicator`), immediately alerting the workshop to pause and consult sales before cutting or embroidering.
+- **Architectural Compliance**:
+  - `GarmentConfigurator.tsx` (489 lines, Rule 500 compliant).
+  - `orderItemConsolidation.ts` (183 lines, Rule 300 compliant).
+  - `OperationsView.tsx` (351 lines, Rule 500 compliant).
+  - `ProductionView.tsx` (486 lines, Rule 500 compliant).
+  - `garmentMeasurementUtils.ts` (56 lines, Rule 300 compliant).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
+### Customer Pocket Name and Embroidery Visibility (`orderItemConsolidation.ts`, `OperationsView.tsx`, `ProductionView.tsx`)
+- **Unified Embroidery & Pocket Name Resolver (`src/utils/orderItemConsolidation.ts`)**:
+  - Exported `resolveItemEmbroideries` to extract and unify embroidery specifications from `item.embroideries`, `item.services` (e.g. "Nombre en el bolsillo" / "LOGO"), and `item.pocketName`.
+  - Dynamically synthesizes `Nombre en bolsillo: [NOMBRE]` and deduplicates references across explicit arrays and services.
+- **Operations View Enhancements (`src/components/views/OperationsView.tsx`)**:
+  - Replaced raw `item.embroideries` checks with `resolveItemEmbroideries(i)` in both Desktop table view and Mobile card stack view.
+  - Prominently styled pocket embroideries with animated amber bullet indicators (`bg-amber-400 animate-pulse font-extrabold text-amber-400`).
+- **Production View Workshop Cards (`src/components/views/ProductionView.tsx`)**:
+  - Updated "NOTAS & BORDADOS" in Desktop ledger and "Bordados Requeridos" in Mobile cards to leverage `resolveItemEmbroideries(item)`.
+  - Pocket names and logo placements are clearly listed with amber badge highlights for workshop staff.
+  - Consolidated measurement points definition into `getMeasurementPoints` to optimize line footprint.
+- **Architectural Compliance**:
+  - `src/utils/orderItemConsolidation.ts` at 177 lines (< 300 lines limit, Rule 300).
+  - `src/components/views/OperationsView.tsx` at 315 lines (< 500 lines limit, Rule 500).
+  - `src/components/views/ProductionView.tsx` at 473 lines (< 500 lines limit, Rule 500).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Garment-Aware Tailoring Measurement Cascading and Production Card Rendering (`garmentMeasurementUtils.ts`, `EditContactModal.tsx`, `ProductionView.tsx`)
+- **Centralized Garment Classifiers (`src/utils/garmentMeasurementUtils.ts`)**:
+  - Implemented single source of truth for tailored piece classification: `isUpperTailored` (Filipina, Chamarra, Camisa — 8 points), `isLowerTailored` (Pantalón — 4 points), `isBundleGarment` (Uniforme Completo UDI — 12 points), and `isTailored`.
+  - Added `getMeasurementButtonLabel` and `getTailoredMeasurementCount` to dynamically compute labels (`8 Medidas`, `4 Medidas`, `12 Medidas`).
+  - Ground truth terminology compliance: Outerwear jackets are strictly `Chamarra` and chef jackets are strictly `Filipina` (zero use of `chaqueta`).
+- **Selective Measurement Cascading & Sanitization (`EditContactModal.tsx`)**:
+  - In `handleSave`, tailored garments (upper, lower, bundle) selectively receive `sizingMatrix`.
+  - Unitalla items (Mandil, Gorro, Delantal, Guardapolvo, Accesorios) are automatically sanitized by deleting `customMeasurements` and `measurements` before writing to Firestore.
+- **Production Board View Guarding (`ProductionView.tsx`)**:
+  - In `getGarmentSpecs`, guarded against non-tailored garments so unitalla pieces never compute `isCustom = true`.
+  - On both Desktop ledger and Mobile cards, guarded the measurement toggle button strictly with `isTailored(item.name) && isCustom`.
+  - Dynamically displays `[📐 8 Medidas]` for upper tailored pieces and `[📐 4 Medidas]` for pants.
+  - Non-tailored unitalla pieces render a clean dash `—` under Talla / Medidas without measurement buttons or raw text dumps.
+- **Architectural Compliance**:
+  - `src/utils/garmentMeasurementUtils.ts` (29 lines, Rule 300 compliant).
+  - `EditContactModal.tsx` (412 lines, Rule 500 compliant).
+  - `ProductionView.tsx` (464 lines, Rule 500 compliant).
+  - Zero `any` additions, zero `@ts-ignore`.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Two-Way Measurement Synchronization and Active Order Cascading (`EditContactModal.tsx`)
+- **Canonical Measurement Points (`TAILORING_12_POINTS`)**:
+  - Replaced the local 12 measurement keys array in `EditContactModal.tsx` with canonical `TAILORING_12_POINTS` imported from `src/utils/contactUtils.ts`.
+  - Implemented sequential value resolution across `m.key`, `m.alt`, camelCase, stripped, and lowercased variants (`matrix[m.key] ?? (m.alt ? matrix[m.alt] : undefined) ?? matrix[camel] ?? matrix[stripped] ?? matrix[stripped.toLowerCase()] ?? ''`).
+  - Synchronized bidirectional writes in `onChange` and re-linking actions, ensuring both prefixed keys (`F_Hombros`, `P_Cintura`) and alias keys (`hombros`, `cintura`) are stored in `sizingMatrix` and `sizingMatrix12PtCM`.
+- **Active Production Order Cascading**:
+  - Updated `handleSave` in `EditContactModal.tsx` to query all active orders (`Inventario Pendiente`, `Material Listo`, `En Confección`, `En Producción`, `Medidas Pendientes`, `Orden Activa`).
+  - Matched customer orders by `contactId` or normalized customer name (`normalizeName`).
+  - Concurrently cascaded the updated measurement matrix into order-level `sizingMatrix`, `sizingMatrix12PtCM`, and item-level `customMeasurements` and `measurements`.
+- **Architectural Compliance**:
+  - `EditContactModal.tsx` at 390 lines (< 500 lines limit, Rule 500).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Product Title Wrapping, A-Z Sorting, and Deterministic Primary Fabric Ordering (`MasterDetailPricingView.tsx`, `GarmentConfigurator.tsx`, `pricingResolver.ts`)
+- **Left Sidebar Card Layout & Sorting (`MasterDetailPricingView.tsx`)**:
+  - Refactored the garment card in the left rail to a 3-level vertical stack:
+    * Line 1: Full product name with `text-sm font-bold text-amber-50 leading-snug whitespace-normal break-words` without truncation, wrapping cleanly when the sidebar narrows.
+    * Line 2: Flex-wrap row with read-only SKU badge (`[ SKU: ... ]`) and category pill.
+    * Line 3: Available fabrics count in `text-xs text-zinc-500 font-mono`.
+  - Sorted the sidebar garments list strictly in alphabetical order (A-Z) using `localeCompare('es', { sensitivity: 'base' })`.
+- **Deterministic Fabric Ordering (`MasterDetailPricingView.tsx`, `GarmentConfigurator.tsx`, `pricingResolver.ts`)**:
+  - In `MasterDetailPricingView.tsx`, sorted the table fabric variants such that the Primary fabric (`isPrimary === true` or matching `defaultFabric`) is strictly at index 0 (Row 1), followed by all secondary fabrics sorted alphabetically.
+  - Added `getSortedFabricsForGarment` to `pricingResolver.ts` to deterministically extract and sort available fabrics with the Primary fabric first.
+  - In `GarmentConfigurator.tsx`, sorted the fabric dropdown options with Primary fabric first followed by alphabetical order, and explicitly set the default selected fabric to the Primary fabric upon garment selection or initialization.
+- **Architectural Compliance**:
+  - `MasterDetailPricingView.tsx` (298 lines), `pricingResolver.ts` (292 lines), `pricingCalculator.ts` (238 lines) strictly < 300 lines limit (Rule 300).
+  - `GarmentConfigurator.tsx` (462 lines) strictly < 500 lines limit (Rule 500).
+  - Zero `any` types, zero `@ts-ignore`.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Aggregated MCP Bundle and Alphanumeric SKU Resolution (`server.ts`, `pricingResolver.ts`, `MasterDetailPricingView.tsx`, `GarmentConfigurator.tsx`)
+- **Aggregated MCP Tool (`staging_get_bundle`) in `server.ts`**:
+  - Registered `staging_get_bundle` in `tools/list` schema.
+  - Implemented concurrent retrieval using `Promise.all` across `pricing/global`, active orders (`status != 'Cancelado'`), and quotes collection.
+  - Returns structured audit bundle `{ pricing, orders, quotes, summary: { activeOrdersCount, quotesCount, lastSyncedAt } }`.
+- **Type Definitions (`src/types/index.ts`, `src/types/pricing.ts`)**:
+  - Added `sku?: string` and `fabricSku?: string` to `OrderItem`, `FabricVariantPricing`, `FabricVariant`, `PricingGarment`, `CatalogGarmentEntry`, and `CatalogGarmentPricing`.
+- **Master-Detail Pricing UI (`MasterDetailPricingView.tsx`, `CatalogPricingTab.tsx`, `BasePricingTab.tsx`)**:
+  - Rendered read-only pill badge `[ SKU: {item.sku} ]` beside the garment title in the right detail header.
+  - Rendered `item.sku` beside the garment name in the left sidebar list.
+  - Rendered `fabricSku` tag for each variant in the fabric matrix table.
+  - Updated `CatalogPricingTab` and `BasePricingTab` to map `sku` and `fabricSku` from incoming pricing records.
+- **Resilient Pricing Resolver (`src/domains/pricing/pricingResolver.ts`)**:
+  - Implemented SKU-first lookup matching `sku` and `fabricSku` in catalog and garments dictionaries.
+  - Retained exact normalized name fallback matching, ensuring zero calculation drift for legacy orders (#ORD-00001 through #ORD-00026).
+  - Delegated `getGarmentPriceValue` in `pricingCalculator.ts` and `usePricingEngine.ts` to the unified resolver.
+- **Order Stamping (`GarmentConfigurator.tsx`)**:
+  - Wired `findGarmentMetadata` into garment and fabric selection handlers to stamp `sku` and `fabricSku` directly onto draft `OrderItem`s.
+- **Architectural Compliance**:
+  - `server.ts` (255 lines), `pricingResolver.ts` (220 lines), `MasterDetailPricingView.tsx` (284 lines), `pricingCalculator.ts` (237 lines), `types/index.ts` (283 lines) strictly < 300 lines limit (Rule 300).
+  - `GarmentConfigurator.tsx` (458 lines) strictly < 500 lines limit (Rule 500).
+  - Zero `any` types, zero `@ts-ignore`.
+  - Verified live via MCP curl call and compilation check (`tsc --noEmit`, `compile_applet`).
+### Enforce Strict Single Primary Fabric & Eliminate Double Star Glitch (`BasePricingTab.tsx`, `MasterDetailPricingView.tsx`)
+- **BasePricingTab Cleanup**:
+  - Removed all hardcoded `defaultFabric` strings from `WORKSHOP_GARMENT_METADATA`, relying 100% on the synchronized `isPrimary` flag sent by Azafrán Precios.
+  - Resolved `primary` strictly via `variants.find(v => v.isPrimary) || variants[0]`, eliminating artificial fallback collisions.
+- **MasterDetailPricingView Table Badge Lock**:
+  - In the table body, locked `isMain` strictly to identity with `primaryVariant` (`isMain = primaryVariant ? v.fabricName === primaryVariant.fabricName : false`).
+  - Guarantees that only exactly one variant can ever be rendered with the `★ Principal` badge, permanently eliminating duplicate primary fabric tags.
+- **Architectural Compliance**:
+  - `BasePricingTab.tsx` reduced to 96 lines (<300 lines limit, Rule 300).
+  - `MasterDetailPricingView.tsx` at 282 lines (<300 lines limit, Rule 300).
+  - Zero `any` types throughout.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Add Pricing Sync Ingestion Endpoint with CORS (`server.ts`)
+- **CORS Middleware Enhancement**:
+  - Configured full cross-origin headers (`Access-Control-Allow-Origin: *`, methods `GET, POST, OPTIONS`, headers `Origin, X-Requested-With, Content-Type, Accept, Authorization`).
+  - Returns `200 OK` on preflight `OPTIONS` requests to eliminate browser preflight blocks.
+- **Direct Pricing Ingestion Route (`POST /api/pricing/sync`)**:
+  - Validates incoming payloads requiring either `garments` or `catalogGarments`.
+  - Merges into `pricing/global` Firestore document with `lastSyncedAt: Date.now()`.
+  - Returns JSON response with `success: true`, message, and `updatedAt` timestamp.
+- **Architectural Compliance**:
+  - `server.ts` at 225 lines (<300 lines limit, Rule 300).
+  - Zero `any` types throughout.
+  - Verified live via `curl` for CORS preflight and validation responses.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Strip Fabric Consumption Figures & Enforce Strict Tela Principal Binding (`MasterDetailPricingView.tsx`, `CatalogPricingTab.tsx`, `BasePricingTab.tsx`)
+- **MasterDetailPricingView Cleanup**:
+  - Completely stripped all workshop consumption metrics: removed `consumptionMeters` from `MasterDetailPricingItem`, deleted `Scissors` icon import, and deleted the right canvas header badge `Consumo: X m/u`.
+  - In left rail card, removed `Xm` indicator and rendered strictly: `<span>{item.variants.length} telas disponibles</span>`.
+  - Right canvas header displays only garment name, category badge, and description.
+  - Enforced strict `primaryVariant` resolution preferring `v.isPrimary === true`, then fallback to `v.fabricName === activeItem.defaultFabric`, and finally `activeItem.variants[0]`.
+- **CatalogPricingTab Update**:
+  - Full support for `pricing.catalogGarments` delivered either as a dictionary or array.
+  - Mapped `isPrimary: Boolean(val?.isPrimary)`.
+  - Omitted all consumption numbers from catalog item mapping.
+- **BasePricingTab Update**:
+  - Mapped `isPrimary: Boolean(val?.isPrimary)` from `pricing.garments`.
+  - Automatically matches default fabric (e.g. Drill 8oz for Gorro) when explicit flags are absent, highlighting true canonical fabric as `[★ TELA PRINCIPAL]` instead of the first alphabetical key.
+  - Stripped all workshop consumption metrics.
+- **Architectural Compliance**:
+  - `MasterDetailPricingView.tsx` (282 lines), `CatalogPricingTab.tsx` (125 lines), `BasePricingTab.tsx` (119 lines) all strictly under 300 lines limit (Rule 300).
+  - Zero `any` types throughout.
+  - Verified with `tsc --noEmit` and `compile_applet`.
+### Fix Catalog Reset Action in Staging Maintenance (`maintenanceUtils.ts`, `StagingMaintenanceView.tsx`)
+- **Root Cause Resolution**:
+  - `resetCatalogPricing` in `src/utils/maintenanceUtils.ts` only cleared `garments: {}` and `catalog: []` with `{ merge: true }`, failing to clear `catalogGarments` which is where **Ajustes > Catálogo** (`CatalogPricingTab.tsx`) reads and displays master catalog items. Added `catalogGarments: {}` to the reset payload.
+  - `executeResetCatalog` in `src/components/views/settings/StagingMaintenanceView.tsx` previously did not notify the local React state via `updatePricingState`. Added a post-reset snapshot read and state dispatch (`updatePricingState?.(snap.data() as PricingData)`) so that the UI immediately updates without requiring a manual browser reload.
+- **Architectural Compliance**:
+  - `maintenanceUtils.ts` at 77 lines (<300 lines limit).
+  - `StagingMaintenanceView.tsx` at 295 lines (<500 lines limit).
+  - Zero `any` types. Verified with `tsc --noEmit` and `compile_applet`.
+### Cleanly Replace Garments and CatalogGarments in staging_update_pricing_matrix (`server.ts`)
+- **Stale Key Prevention via Direct Replacement**:
+  - Refactored `staging_update_pricing_matrix` handler in `server.ts` to first fetch the current `pricing/global` document snapshot.
+  - Replaces `currentData.garments` and `currentData.catalogGarments` directly when present in incoming arguments instead of deep-merging subkeys, preventing deleted or renamed garment keys from persisting.
+  - Updates `lastSyncedAt: Date.now()` and saves the entire clean state via `setDoc(docRef, currentData)`.
+- **Architectural Compliance**:
+  - Single file implementation in `server.ts` (189 lines), strictly complying with Rule 300 (<300 lines limit).
+  - Zero `any` types throughout.
+  - Verified live via JSON-RPC 2.0 tool call over HTTP.
+  - Verified with `tsc --noEmit` and `compile_applet`.
 ### Implement staging_update_pricing_matrix MCP Tool in server.ts (`server.ts`)
 - **Added `staging_update_pricing_matrix` Tool**:
   - Registered in `tools/list` schema with documentation for `garments` (multi-fabric pricing dictionary: `{ [garment]: { [fabric]: { priceRaleo, priceB2B } } }`) and `catalogGarments` (array of finished catalog garments pinned to default fabrics).

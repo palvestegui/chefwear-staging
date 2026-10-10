@@ -121,3 +121,63 @@ export const consolidateCommercialItems = (
 
   return result;
 };
+
+/**
+ * Resolves all required embroideries and pocket names for an item,
+ * unifying explicit embroideries, embroidery services, and pocketName.
+ */
+export const resolveItemEmbroideries = (
+  item: Partial<OrderItem> | Record<string, unknown>
+): string[] => {
+  const result: string[] = [];
+  const rawPocket = (item as { pocketName?: string }).pocketName;
+  const pocket = typeof rawPocket === 'string' ? rawPocket.trim() : '';
+
+  // 1. Process explicit embroideries
+  const rawEmbs = (item as { embroideries?: unknown[] }).embroideries;
+  if (Array.isArray(rawEmbs)) {
+    rawEmbs.forEach(emb => {
+      const embStr = String(emb || '').trim();
+      if (!embStr) return;
+      const lower = embStr.toLowerCase();
+      if (lower.includes('bolsillo') || lower.includes('nombre')) {
+        const label = pocket 
+          ? `Nombre en bolsillo: ${pocket}` 
+          : `⚠️ FALTA NOMBRE EN BOLSILLO (NO ESPECIFICADO)`;
+        result.push(label);
+      } else {
+        result.push(embStr);
+      }
+    });
+  }
+
+  // 2. Process services (where "Nombre en el bolsillo" is often stored)
+  const rawServices = (item as { services?: unknown[] }).services;
+  if (Array.isArray(rawServices)) {
+    rawServices.forEach(srv => {
+      const srvStr = String(srv || '').trim();
+      if (!srvStr) return;
+      const lower = srvStr.toLowerCase();
+      if (lower.includes('bolsillo') || lower.includes('nombre')) {
+        const label = pocket 
+          ? `Nombre en bolsillo: ${pocket}` 
+          : `⚠️ FALTA NOMBRE EN BOLSILLO (NO ESPECIFICADO)`;
+        if (!result.some(r => r.toLowerCase().includes('bolsillo') || r.includes('⚠️ FALTA NOMBRE EN BOLSILLO'))) {
+          result.push(label);
+        }
+      } else if (srvStr.toUpperCase().includes('LOGO')) {
+        if (!result.some(r => r.toLowerCase() === srvStr.toLowerCase())) {
+          result.push(srvStr);
+        }
+      }
+    });
+  }
+
+  // 3. Fallback: If pocketName exists but was not captured above
+  if (pocket && !result.some(r => r.includes(pocket))) {
+    result.push(`Nombre en bolsillo: ${pocket}`);
+  }
+
+  return result;
+};
+

@@ -13,7 +13,7 @@ import { TierDiscountRules } from '../../types/pricing';
 import { Firestore } from 'firebase/firestore';
 
 export interface SettingsPricingInput {
-  catalogGarments?: Record<string, CatalogGarmentRecord>;
+  catalogGarments?: Record<string, CatalogGarmentRecord> | CatalogGarmentRecord[];
   garments?: Record<string, Record<string, { priceRaleo: number; priceB2B: number }>>;
   discountRulesByTier?: Record<string, TierDiscountRules>;
   specialPresetDiscounts?: Record<string, unknown>;

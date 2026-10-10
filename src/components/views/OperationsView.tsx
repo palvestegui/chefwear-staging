@@ -4,7 +4,7 @@ const {
   ImageIcon, FileText, CheckCircle, Lock, Eye, Users 
 } = LucideIcons;
 import { getOrderSellerName } from '../../utils/sellerUtils';
-import { consolidateCommercialItems } from '../../utils/orderItemConsolidation';
+import { consolidateCommercialItems, resolveItemEmbroideries } from '../../utils/orderItemConsolidation';
 
 export interface OperationsViewProps {
   orders: any[];
@@ -84,19 +84,41 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
                             <span className="bg-stone-900 border border-stone-800 px-2.5 py-0.5 rounded-lg text-[10px] uppercase font-black text-stone-400 tracking-wider font-sans whitespace-nowrap">COLOR: {i.fabricColor}</span>
                           )}
                         </div>
-                        {i.embroideries && i.embroideries.length > 0 && (
-                          <div className="bg-stone-900/80 p-2 rounded-lg border border-stone-800 text-[10px] space-y-0.5 max-w-[280px]">
-                            {i.embroideries.map((emb: string, eIdx: number) => {
-                              const isBolsillo = emb.toLowerCase().includes('bolsillo');
-                              return (
-                                <div key={eIdx} className={`flex items-center gap-1.5 font-bold ${isBolsillo ? 'text-amber-400 font-extrabold' : 'text-stone-400'}`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isBolsillo ? 'bg-amber-400 animate-pulse' : 'bg-stone-600'}`}></span>
-                                  <span>{emb.startsWith('Otro:') ? emb.split('|')[0].replace('Otro:', '').trim() : emb}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        {(() => {
+                          const embs = resolveItemEmbroideries(i);
+                          if (embs.length === 0) return null;
+                          return (
+                            <div className="bg-stone-900/80 p-2 rounded-lg border border-stone-800 text-[10px] space-y-0.5 max-w-[320px] mt-1">
+                              {embs.map((emb: string, eIdx: number) => {
+                                const isWarning = emb.startsWith('⚠️');
+                                const isBolsillo = emb.toLowerCase().includes('bolsillo') || emb.toLowerCase().includes('nombre');
+                                return (
+                                  <div
+                                    key={eIdx}
+                                    className={`flex items-center gap-1.5 font-bold ${
+                                      isWarning
+                                        ? 'bg-red-950/60 border border-red-500/40 text-red-400 font-black px-1.5 py-0.5 rounded'
+                                        : isBolsillo
+                                        ? 'text-amber-400 font-extrabold'
+                                        : 'text-stone-400'
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                        isWarning
+                                          ? 'bg-red-500 animate-ping'
+                                          : isBolsillo
+                                          ? 'bg-amber-400 animate-pulse'
+                                          : 'bg-stone-600'
+                                      }`}
+                                    ></span>
+                                    <span>{emb.startsWith('Otro:') ? emb.split('|')[0].replace('Otro:', '').trim() : emb}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -226,25 +248,41 @@ export const OperationsView: React.FC<OperationsViewProps> = ({
                         Color: <span className="text-stone-300 uppercase">{i.fabricColor}</span>
                       </div>
                     )}
-                    {i.embroideries && i.embroideries.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-0.5">
-                        {i.embroideries.map((emb: string, eIdx: number) => {
-                          const isBolsillo = emb.toLowerCase().includes('bolsillo');
-                          return (
-                            <span
-                              key={eIdx}
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                                isBolsillo
-                                  ? 'text-amber-400 bg-amber-500/10 border-amber-500/30 font-black'
-                                  : 'text-stone-400 bg-stone-900 border-stone-800'
-                              }`}
-                            >
-                              {emb.startsWith('Otro:') ? emb.split('|')[0].replace('Otro:', '').trim() : emb}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
+                    {(() => {
+                      const embs = resolveItemEmbroideries(i);
+                      if (embs.length === 0) return null;
+                      return (
+                        <div className="bg-stone-900/80 p-2 rounded-lg border border-stone-800 text-[10px] space-y-0.5 max-w-[320px] mt-1">
+                          {embs.map((emb: string, eIdx: number) => {
+                            const isWarning = emb.startsWith('⚠️');
+                            const isBolsillo = emb.toLowerCase().includes('bolsillo') || emb.toLowerCase().includes('nombre');
+                            return (
+                              <div
+                                key={eIdx}
+                                className={`flex items-center gap-1.5 font-bold ${
+                                  isWarning
+                                    ? 'bg-red-950/60 border border-red-500/40 text-red-400 font-black px-1.5 py-0.5 rounded'
+                                    : isBolsillo
+                                    ? 'text-amber-400 font-extrabold'
+                                    : 'text-stone-400'
+                                }`}
+                              >
+                                <span
+                                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    isWarning
+                                      ? 'bg-red-500 animate-ping'
+                                      : isBolsillo
+                                      ? 'bg-amber-400 animate-pulse'
+                                      : 'bg-stone-600'
+                                  }`}
+                                ></span>
+                                <span>{emb.startsWith('Otro:') ? emb.split('|')[0].replace('Otro:', '').trim() : emb}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

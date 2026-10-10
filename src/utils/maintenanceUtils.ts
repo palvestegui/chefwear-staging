@@ -36,6 +36,7 @@ export const resetCatalogPricing = async (firestore: Firestore): Promise<void> =
   await setDoc(doc(firestore, 'pricing', 'global'), {
     garments: {},
     catalog: [],
+    catalogGarments: {},
     version: 0,
     updatedAt: Date.now(),
   }, { merge: true });
@@ -43,6 +44,7 @@ export const resetCatalogPricing = async (firestore: Firestore): Promise<void> =
   try {
     await setDoc(doc(firestore, 'settings', 'pricing'), {
       garments: {},
+      catalogGarments: {},
       updatedAt: Date.now(),
     }, { merge: true });
   } catch (legacyErr) {

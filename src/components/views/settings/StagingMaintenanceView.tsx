@@ -91,6 +91,10 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
     setSuccessMessage(null);
     try {
       await resetCatalogPricing(firestore);
+      const snap = await getDoc(doc(firestore, "pricing", "global"));
+      if (snap.exists()) {
+        updatePricingState?.(snap.data() as PricingData);
+      }
       notifyResult("✓ Catálogo de prendas vaciado con éxito en Firestore (Servicios y UDI preservados)");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);

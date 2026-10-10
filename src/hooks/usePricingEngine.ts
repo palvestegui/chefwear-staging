@@ -89,7 +89,7 @@ export const usePricingEngine = (pricing: any) => {
     // 3. Tab A - Catalog Resolution by Pricing Tier (Basic Raleo vs Negotiated B2B)
     const isB2B = rawTier === 'Estándar B2B' || rawTier === 'B2B Estándar' || rawTier === 'B2B';
 
-    return getGarmentPriceValue(effectivePricing.garments, item.name, item.fabric, isB2B);
+    return getGarmentPriceValue(effectivePricing.garments, item.name, item.fabric, isB2B, item.sku, item.fabricSku);
   };
 
   
