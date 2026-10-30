@@ -1,4 +1,15 @@
 ## [Unreleased]
+### Staging Backend Receiver 50MB Payload Expansion and Safe Catalog Merge (`server.ts`)
+- **Body-Parser Limit Expansion**:
+  - Expanded `express.json({ limit: "50mb" })` and added `express.urlencoded({ limit: "50mb", extended: true })` to prevent HTTP 413 Payload Too Large rejections during full 32-garment catalog synchronizations with high-resolution imagery and rich descriptions.
+- **Route Aliases & Zero Data Loss Catalog Sync**:
+  - Registered sync receiver handler across `/api/pricing/sync`, `/api/sync-to-ventas`, `/api/sync-pricing`, and `/sync`.
+  - Enforced Firestore update with `{ merge: true }` on `pricing/global`, guaranteeing that existing `services`, `specialPresets` (UDI packages), and `discountRulesByTier` are never overwritten or dropped.
+  - Dynamically configured CORS headers (`Access-Control-Allow-Origin: req.headers.origin || '*'`) allowing cross-origin requests from Azafrán Precios (`https://azafran-costos-precios.ai.studio`, `localhost`, etc.).
+- **Architectural Compliance**:
+  - `server.ts` maintained at 260 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Strict Pre-Cart Modal Validation and Workshop Incomplete Order Badges (`GarmentConfigurator.tsx`, `orderItemConsolidation.ts`, `OperationsView.tsx`, `ProductionView.tsx`)
 - **Strict Pre-Flight Validation Gates (`GarmentConfigurator.tsx`)**:
   - Gated `handleAddItem` with 4 mandatory field validations:

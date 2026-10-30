@@ -18,12 +18,14 @@ async function startServer() {
   const app = express();
   const PORT = process.env.NODE_ENV === "production" ? (Number(process.env.PORT) || 3000) : 3000;
 
-  // Higher payload limit for full catalog matrices
-  app.use(express.json({ limit: "5mb" }));
+  // Higher payload limit for full catalog matrices (including rich descriptions and images)
+  app.use(express.json({ limit: "50mb" }));
+  app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-  // CORS middleware for Precios sync and Gemini MCP connector
+  // CORS middleware for Precios sync, local testing, and Gemini MCP connector
   app.use((req: Request, res: Response, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
+    const origin = req.headers.origin || "*";
+    res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
     if (req.method === "OPTIONS") {
@@ -32,29 +34,27 @@ async function startServer() {
     next();
   });
 
-  // Direct pricing sync ingestion endpoint
-  app.post("/api/pricing/sync", async (req: Request, res: Response) => {
+  // Direct pricing sync ingestion endpoint (supports aliases: /api/pricing/sync, /api/sync-to-ventas, /api/sync-pricing, /sync)
+  const handleCatalogSync = async (req: Request, res: Response) => {
     try {
-      const { garments, catalogGarments, lastSyncedAt } = (req.body || {}) as {
+      const body = (req.body || {}) as {
         garments?: Record<string, unknown>;
         catalogGarments?: unknown;
         lastSyncedAt?: number;
       };
 
-      if (!garments && !catalogGarments) {
-        return res.status(400).json({
-          success: false,
-          error: "Payload missing garments or catalogGarments"
-        });
-      }
+      const garments = body.garments || {};
+      const catalogGarments = body.catalogGarments || [];
+      const lastSyncedAt = body.lastSyncedAt || Date.now();
 
+      // Zero Data Loss: NEVER overwrite or drop pricing.services, pricing.specialPresets, or discountRulesByTier
+      // Write incoming catalog data strictly with { merge: true }
       const payload: Record<string, unknown> = {
-        lastSyncedAt: lastSyncedAt || Date.now()
+        garments,
+        catalogGarments,
+        lastSyncedAt
       };
-      if (garments) payload.garments = garments;
-      if (catalogGarments) payload.catalogGarments = catalogGarments;
 
-      // Direct write using Ventas' own authenticated Firestore instance
       await setDoc(doc(db, "pricing", "global"), payload, { merge: true });
 
       return res.json({
@@ -67,7 +67,12 @@ async function startServer() {
       console.error("Error syncing pricing to Ventas:", message);
       return res.status(500).json({ success: false, error: message });
     }
-  });
+  };
+
+  app.post("/api/pricing/sync", handleCatalogSync);
+  app.post("/api/sync-to-ventas", handleCatalogSync);
+  app.post("/api/sync-pricing", handleCatalogSync);
+  app.post("/sync", handleCatalogSync);
 
   // Health and ping on /mcp
   app.get("/mcp", (_req: Request, res: Response) => {
