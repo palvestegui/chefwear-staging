@@ -9,12 +9,13 @@ export const firebaseConfig = {
   storageBucket: "azafran-staging.firebasestorage.app",
   messagingSenderId: "225609753361",
   appId: "1:225609753361:web:3c49d39531080360a1a2b0",
-  measurementId: "G-7WNKD8S1QE"
+  measurementId: "G-7WNKD8S1QE",
+  firestoreDatabaseId: "ai-studio-staging-ab4c50fd-e8ed-40a2-a91c-6782ae7f098e"
 };
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const googleProvider = new GoogleAuthProvider();
 
 export enum OperationType {

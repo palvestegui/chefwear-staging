@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { collection, doc, getDoc, getDocs } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
 import { adminDb } from "./src/server/adminDb";
 
@@ -44,9 +44,15 @@ async function startServer() {
         lastSyncedAt: Date.now()
       };
 
-      // Elevated permissions write via Admin SDK with { merge: true }
+      // Write with { merge: true }
       // Zero Data Loss: NEVER overwrite or drop pricing.services, pricing.specialPresets, or discountRulesByTier
-      await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
+      try {
+        await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
+      } catch (adminErr: unknown) {
+        // Fallback to client Firestore SDK authorized by firestore.rules for /pricing/{docId}
+        console.warn("[Sync] adminDb error, falling back to client Firestore SDK:", adminErr instanceof Error ? adminErr.message : String(adminErr));
+        await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
+      }
 
       return res.json({
         success: true,
@@ -54,11 +60,11 @@ async function startServer() {
         syncedCatalogCount: Array.isArray(payload.catalogGarments)
           ? payload.catalogGarments.length
           : Object.keys(payload.catalogGarments || {}).length,
-        message: 'Ventas Staging pricing/global successfully updated via Admin SDK'
+        message: 'Ventas Staging pricing/global successfully updated'
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Error syncing pricing to Ventas via Admin SDK:", message);
+      console.error("Error syncing pricing to Ventas:", message);
       return res.status(500).json({ success: false, error: message });
     }
   };

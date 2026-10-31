@@ -1,4 +1,15 @@
 ## [Unreleased]
+### Named Firestore Database Binding & Resilient Sync Ingestion (`src/firebase.ts`, `server.ts`)
+- **Named Database Binding (`src/firebase.ts`)**:
+  - Bound `getFirestore` explicitly to `firebaseConfig.firestoreDatabaseId` (`ai-studio-staging-ab4c50fd-e8ed-40a2-a91c-6782ae7f098e`), ensuring all client Firestore calls target the provisioned database where `firestore.rules` are active.
+- **Resilient Dual-Layer Ingestion (`server.ts`)**:
+  - `handleCatalogSync` attempts write via `adminDb` and seamlessly cascades to client `setDoc` (authorized for `/pricing/{docId}` in `firestore.rules`) with `{ merge: true }`.
+  - Verified live HTTP sync response: `{"success": true, "syncedGarmentsCount": 1, "syncedCatalogCount": 1, "message": "Ventas Staging pricing/global successfully updated"}`.
+- **Architectural Compliance**:
+  - `src/firebase.ts` maintained at 54 lines (< 300 lines limit, Rule 300).
+  - `server.ts` maintained at 258 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Switch Catalog Sync Receiver to Admin SDK Execution (`server.ts`)
 - **Admin SDK Execution**:
   - In `handleCatalogSync` (supporting `/api/pricing/sync`, `/api/sync-to-ventas`, `/api/sync-pricing`, `/sync`), switched line 49 from client `setDoc` to:
