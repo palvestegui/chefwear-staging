@@ -1,4 +1,20 @@
 ## [Unreleased]
+### Allow Public Pricing Read/Write in Firestore Security Rules & Client SDK Sync (`firestore.rules`, `server.ts`)
+- **Firestore Security Rules Authorization (`firestore.rules`)**:
+  - Explicitly added match rule for `/pricing/{docId}` allowing `read, write: if true;`, authorizing server-to-server and client catalog synchronization while retaining `request.auth != null` for all sensitive application data (`orders`, `users`, `clientAccounts`, `masterContacts`, `settings`).
+  - Deployed updated rules to the live Firestore instance via `deploy_firebase`.
+- **Client SDK Ingestion Route (`server.ts`)**:
+  - In `handleCatalogSync` (handling `/api/pricing/sync`, `/api/sync-to-ventas`, `/api/sync-pricing`, `/sync`), writes incoming sync data using client Firestore SDK:
+    ```ts
+    await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
+    ```
+  - Zero Data Loss: Uses `{ merge: true }` to preserve existing services, specialPresets, and discount rules.
+  - Returns `syncedGarmentsCount`, `syncedCatalogCount`, and confirmation message.
+- **Architectural Compliance**:
+  - `server.ts` maintained at 252 lines (< 300 lines limit, Rule 300).
+  - `firestore.rules` maintained at 56 lines.
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Dynamic Firestore Configuration and Database Binding in Admin SDK (`src/server/adminDb.ts`, `server.ts`)
 - **Dynamic Project & Database ID Binding**:
   - Replaced hardcoded dummy project configuration in `src/server/adminDb.ts` with dynamic import of `firebase-applet-config.json`.

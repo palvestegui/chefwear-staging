@@ -44,9 +44,9 @@ async function startServer() {
         lastSyncedAt: Date.now()
       };
 
-      // Elevated permissions write via Admin SDK with { merge: true }
+      // Write via client Firestore SDK with { merge: true } (authorized by firestore.rules for /pricing/{docId})
       // Zero Data Loss: NEVER overwrite or drop pricing.services, pricing.specialPresets, or discountRulesByTier
-      await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
+      await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
 
       return res.json({
         success: true,
@@ -54,11 +54,11 @@ async function startServer() {
         syncedCatalogCount: Array.isArray(payload.catalogGarments)
           ? payload.catalogGarments.length
           : Object.keys(payload.catalogGarments || {}).length,
-        message: 'Ventas Staging pricing/global successfully updated via Admin SDK'
+        message: 'Ventas Staging pricing/global successfully updated'
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Error syncing pricing to Ventas via Admin SDK:", message);
+      console.error("Error syncing pricing to Ventas:", message);
       return res.status(500).json({ success: false, error: message });
     }
   };
