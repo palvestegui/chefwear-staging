@@ -54,7 +54,7 @@ export const BasePricingTab: React.FC<BasePricingTabProps> = ({ settingsForm }) 
         }
 
         const variants: PricingVariant[] = Object.entries(fabricsObj || {})
-          .filter(([fabricName]) => !fabricName.startsWith('_') && fabricName !== 'sku')
+          .filter(([fabricName]) => !fabricName.startsWith('_') && fabricName !== 'sku' && fabricName !== 'baseGarment')
           .map(([fabricName, val]) => {
             let raleo = 0;
             let b2b = 0;

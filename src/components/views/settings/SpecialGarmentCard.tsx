@@ -14,9 +14,14 @@ export interface SpecialGarmentCardProps {
   invalidPriceFields: Set<string>;
 }
 
-import { BASE_GARMENT_OPTIONS, getInferredBaseFamily } from '../../../utils/specialGarmentUtils';
+import { 
+  BASE_GARMENT_OPTIONS, 
+  getInferredBaseFamily, 
+  METADATA_KEYS,
+  deriveCandidateFabrics 
+} from '../../../utils/specialGarmentUtils';
 
-export { BASE_GARMENT_OPTIONS, getInferredBaseFamily };
+export { BASE_GARMENT_OPTIONS, getInferredBaseFamily, METADATA_KEYS };
 
 export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
   garment,
@@ -33,12 +38,15 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
   const [editedName, setEditedName] = useState(garment);
   const [confirmDeleteGarment, setConfirmDeleteGarment] = useState(false);
   const [showServicesConfig, setShowServicesConfig] = useState(false);
+  const [selectedCandidateFabric, setSelectedCandidateFabric] = useState<string>('');
 
   const rawGarmentRecord = activePresetData[garment] || {};
   const currentBaseGarment: string = rawGarmentRecord.baseGarment || getInferredBaseFamily(garment);
 
-  // Fabrics: all keys except 'baseGarment'
-  const fabricKeys = Object.keys(rawGarmentRecord).filter(k => k !== 'baseGarment');
+  // Fabrics: exclude metadata keys and leading underscores
+  const fabricKeys = Object.keys(rawGarmentRecord).filter(
+    k => !METADATA_KEYS.has(k) && !k.startsWith('_')
+  );
 
   const allServices: any[] = settingsForm.services || [];
 
@@ -49,6 +57,11 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
     if (Array.isArray(srv.appliesToStandard) && srv.appliesToStandard.includes(currentBaseGarment)) return true;
     return false;
   });
+
+  // Derive candidate workshop fabrics from baseGarment in Tab A, excluding already added fabrics and metadata keys
+  const candidateFabrics = React.useMemo(() => {
+    return deriveCandidateFabrics(settingsForm.garments, currentBaseGarment, rawGarmentRecord);
+  }, [settingsForm.garments, currentBaseGarment, rawGarmentRecord]);
 
   // Section A: Included Services in Base Price
   const includedServicesMap = settingsForm.specialPresetIncludedServices || {};
@@ -341,20 +354,47 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
 
         {/* Fabrics and Pricing list */}
         <div className="flex flex-col gap-2 mt-3">
-          {fabricKeys.map(fabric => (
-            <div key={fabric} className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-xl border border-stone-800/80">
-              <span className="font-bold text-stone-300 text-xs truncate flex-1">{fabric}</span>
-              <div className="flex items-center gap-2">
-                <div className="relative flex items-center">
-                  <input
-                    type="number"
-                    value={rawGarmentRecord[fabric]}
-                    onChange={e => {
-                      const nVal = parseFloat(e.target.value) || 0;
+          {fabricKeys.map(fabric => {
+            if (fabric === 'sku' || fabric === 'baseGarment' || METADATA_KEYS.has(fabric)) return null;
+
+            return (
+              <div key={fabric} className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-xl border border-stone-800/80">
+                <span className="font-bold text-stone-300 text-xs truncate flex-1">{fabric}</span>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      value={rawGarmentRecord[fabric]}
+                      onChange={e => {
+                        const nVal = parseFloat(e.target.value) || 0;
+                        const updatedPresets = { ...currentPresets };
+                        const updatedPresetData = { ...(updatedPresets[effectiveActivePreset] || {}) };
+                        const updatedGarment = { ...(updatedPresetData[garment] || {}) };
+                        updatedGarment[fabric] = nVal;
+                        updatedPresetData[garment] = updatedGarment;
+                        updatedPresets[effectiveActivePreset] = updatedPresetData;
+
+                        setSettingsForm((p: any) => ({
+                          ...p,
+                          specialPresets: updatedPresets,
+                          udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing
+                        }));
+                      }}
+                      className={`bg-stone-950 px-2 py-1 rounded-lg w-20 text-right font-mono font-bold outline-none border text-xs transition-colors ${
+                        invalidPriceFields.has(`tabB:${effectiveActivePreset}:${garment}:${fabric}`)
+                          ? 'border-red-500/90 bg-red-950/30 text-red-400'
+                          : 'border-stone-700 text-amber-400 focus:border-amber-500'
+                      }`}
+                    />
+                    <span className="ml-1 text-[10px] font-mono text-stone-500 font-bold">Bs</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
                       const updatedPresets = { ...currentPresets };
                       const updatedPresetData = { ...(updatedPresets[effectiveActivePreset] || {}) };
                       const updatedGarment = { ...(updatedPresetData[garment] || {}) };
-                      updatedGarment[fabric] = nVal;
+                      delete updatedGarment[fabric];
                       updatedPresetData[garment] = updatedGarment;
                       updatedPresets[effectiveActivePreset] = updatedPresetData;
 
@@ -364,53 +404,39 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
                         udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing
                       }));
                     }}
-                    className={`bg-stone-950 px-2 py-1 rounded-lg w-20 text-right font-mono font-bold outline-none border text-xs transition-colors ${
-                      invalidPriceFields.has(`tabB:${effectiveActivePreset}:${garment}:${fabric}`)
-                        ? 'border-red-500/90 bg-red-950/30 text-red-400'
-                        : 'border-stone-700 text-amber-400 focus:border-amber-500'
-                    }`}
-                  />
-                  <span className="ml-1 text-[10px] font-mono text-stone-500 font-bold">Bs</span>
+                    className="p-1 text-stone-600 hover:text-red-500 transition"
+                    title="Eliminar tela"
+                  >
+                    <Trash2 size={12} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const updatedPresets = { ...currentPresets };
-                    const updatedPresetData = { ...(updatedPresets[effectiveActivePreset] || {}) };
-                    const updatedGarment = { ...(updatedPresetData[garment] || {}) };
-                    delete updatedGarment[fabric];
-                    updatedPresetData[garment] = updatedGarment;
-                    updatedPresets[effectiveActivePreset] = updatedPresetData;
-
-                    setSettingsForm((p: any) => ({
-                      ...p,
-                      specialPresets: updatedPresets,
-                      udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing
-                    }));
-                  }}
-                  className="p-1 text-stone-600 hover:text-red-500 transition"
-                  title="Eliminar tela"
-                >
-                  <Trash2 size={12} />
-                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Add fabric to garment */}
+        {/* Add fabric to garment: Curated Dropdown */}
         <div className="pt-2.5 mt-2 border-t border-stone-900 flex gap-1.5 items-center">
-          <input
-            type="text"
-            placeholder="Añadir tela (Ej. Drill de 8oz)..."
-            value={newPresetFabricInputs[garment] || ''}
-            onChange={e => setNewPresetFabricInputs(prev => ({ ...prev, [garment]: e.target.value }))}
+          <select
+            value={selectedCandidateFabric}
+            onChange={e => setSelectedCandidateFabric(e.target.value)}
             className="flex-1 bg-stone-900 border border-stone-850 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-stone-200 outline-none focus:border-amber-500/50"
-          />
+          >
+            <option value="" disabled className="text-stone-500">
+              -- Seleccionar tela de taller --
+            </option>
+            {candidateFabrics.map(fab => (
+              <option key={fab} value={fab} className="bg-stone-900 text-stone-200">
+                {fab}
+              </option>
+            ))}
+          </select>
+
           <button
             type="button"
+            disabled={!selectedCandidateFabric}
             onClick={() => {
-              const fabricName = (newPresetFabricInputs[garment] || '').trim();
+              const fabricName = selectedCandidateFabric.trim();
               if (!fabricName) return;
               const updatedPresets = { ...currentPresets };
               const updatedPresetData = { ...(updatedPresets[effectiveActivePreset] || {}) };
@@ -419,7 +445,17 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
                 alert('Esta tela ya existe para esta prenda.');
                 return;
               }
-              updatedGarment[fabricName] = 0;
+
+              // Pre-fill from Tab A B2B price if available, otherwise 0
+              const baseGarmentData = settingsForm.garments?.[currentBaseGarment]?.[fabricName];
+              let defaultPrice = 0;
+              if (typeof baseGarmentData === 'number') {
+                defaultPrice = baseGarmentData;
+              } else if (baseGarmentData && typeof baseGarmentData === 'object') {
+                defaultPrice = Number(baseGarmentData.priceB2B || baseGarmentData.priceRaleo || 0);
+              }
+
+              updatedGarment[fabricName] = defaultPrice;
               updatedPresetData[garment] = updatedGarment;
               updatedPresets[effectiveActivePreset] = updatedPresetData;
 
@@ -428,9 +464,9 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
                 specialPresets: updatedPresets,
                 udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing
               }));
-              setNewPresetFabricInputs(prev => ({ ...prev, [garment]: '' }));
+              setSelectedCandidateFabric('');
             }}
-            className="bg-stone-900 hover:bg-stone-800 text-amber-400 p-1.5 rounded-lg border border-stone-800 transition flex items-center justify-center"
+            className="bg-stone-900 hover:bg-stone-800 disabled:opacity-40 disabled:hover:bg-stone-900 text-amber-400 p-1.5 rounded-lg border border-stone-800 transition flex items-center justify-center cursor-pointer"
             title="Añadir tela a la prenda"
           >
             <Plus size={13} />

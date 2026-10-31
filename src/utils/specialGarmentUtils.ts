@@ -24,3 +24,38 @@ export const getInferredBaseFamily = (garmentName: string): string => {
   if (norm.includes('camisa')) return 'Camisa (servicio)';
   return 'Filipina';
 };
+
+export const METADATA_KEYS = new Set([
+  'sku',
+  'baseGarment',
+  'id',
+  'name',
+  'category',
+  'isPrimary',
+  'fabricSku'
+]);
+
+export const deriveCandidateFabrics = (
+  garments: Record<string, any> | undefined,
+  baseGarment: string,
+  rawGarmentRecord: Record<string, any>
+): string[] => {
+  const baseGarmentFabrics = garments?.[baseGarment] || {};
+  const baseKeys = Object.keys(baseGarmentFabrics).filter(
+    k => !METADATA_KEYS.has(k) && !k.startsWith('_') && !(k in rawGarmentRecord)
+  );
+
+  const allWorkshopFabrics = new Set<string>();
+  Object.values(garments || {}).forEach((gData: any) => {
+    if (gData && typeof gData === 'object') {
+      Object.keys(gData).forEach(k => {
+        if (!METADATA_KEYS.has(k) && !k.startsWith('_') && !(k in rawGarmentRecord)) {
+          allWorkshopFabrics.add(k);
+        }
+      });
+    }
+  });
+
+  const combined = Array.from(new Set([...baseKeys, ...Array.from(allWorkshopFabrics)]));
+  return combined.sort((a, b) => a.localeCompare(b));
+};

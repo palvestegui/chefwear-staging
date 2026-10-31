@@ -1,4 +1,25 @@
 ## [Unreleased]
+### Metadata Keys Validation Filtering & Curated Workshop Fabric Dropdown (`useSettingsMutations.ts`, `SpecialGarmentCard.tsx`, `BasePricingTab.tsx`, `specialGarmentUtils.ts`)
+- **Metadata Keys Validation Filter (`src/hooks/useSettingsMutations.ts`)**:
+  - Defined explicit set of non-fabric metadata keys: `METADATA_KEYS = new Set(['sku', 'baseGarment', 'id', 'name', 'category', 'isPrimary', 'fabricSku'])`.
+  - In `validatePricingForm`:
+    * Tab A (`settingsForm.garments`): Skips any key in `METADATA_KEYS` or starting with `_`, and populates `invalidPriceFields` with both base key and sub-keys (`tabA:${garment}:${fabric}`, `tabA:${garment}:${fabric}:raleo`, `tabA:${garment}:${fabric}:b2b`) for visual border alignment.
+    * Tab B (`settingsForm.specialPresets`): Skips any key in `METADATA_KEYS` or starting with `_`.
+  - Fixes false-positive validation errors where non-numeric metadata keys previously triggered the red warning banner and blocked saving.
+- **Curated Workshop Fabric Dropdown in Special Garment Cards (`SpecialGarmentCard.tsx`, `specialGarmentUtils.ts`)**:
+  - Replaced the free-hand text input with an interactive `<select>` dropdown populated from candidate workshop fabrics.
+  - Candidate fabrics are derived from `settingsForm.garments[currentBaseGarment]` (and distinct global fabrics across Tab A garments), excluding already-added fabrics and metadata keys.
+  - Adding a fabric defaults its negotiated price to the Tab A B2B price if available (or 0 Bs) and resets the dropdown selection.
+  - Added rendering guards skipping metadata keys (`sku`, `baseGarment`) in the fabric listing.
+- **Rendering Guard in Base Pricing (`BasePricingTab.tsx`)**:
+  - Guarded variant mapping in Tab A to filter out `fabricName === 'sku' || fabricName === 'baseGarment'`.
+- **Architectural & Type Safety Compliance**:
+  - `src/hooks/useSettingsMutations.ts`: 251 lines (< 300 lines limit, Rule 300).
+  - `src/utils/specialGarmentUtils.ts`: 61 lines (< 300 lines limit, Rule 300).
+  - `src/components/views/settings/SpecialGarmentCard.tsx`: 492 lines (< 500 lines limit, Rule 500).
+  - `src/components/views/settings/BasePricingTab.tsx`: 109 lines (< 500 lines limit, Rule 500).
+  - Strict TypeScript: Zero `any` additions, zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Dynamic Corporate Contracts Rendering in Tarifario (`PriceReference.tsx`, `CorporatePresetSection.tsx`, `PricesView.tsx`)
 - **Eliminated Hardcoded UDI Block from Tarifario (`src/components/PriceReference.tsx`)**:
   - Removed legacy hardcoded fallback `pricing?.specialPresets?.['UDI Especial']` and the static UDI banner (`"Paquete Completo UDI... Total: 0 Bs"`).

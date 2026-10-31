@@ -103,27 +103,32 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
 
   const validatePricingForm = (): boolean => {
     const invalid = new Set<string>();
+    const METADATA_KEYS = new Set(['sku', 'baseGarment', 'id', 'name', 'category', 'isPrimary', 'fabricSku']);
     
     // Check Tab A (Global / Default)
     Object.keys(settingsForm.garments).forEach((garment) => {
       const fabrics = settingsForm.garments[garment] || {};
       Object.keys(fabrics).forEach((fabric) => {
+        if (METADATA_KEYS.has(fabric) || fabric.startsWith('_')) return;
         if (garment === 'Gorro' && (fabric.includes('Tornado') || fabric.includes('Gabardina de 1ra'))) return;
         const val = fabrics[fabric];
         const numVal = typeof val === 'number' ? val : (typeof val === 'object' && val !== null ? Number(val.priceRaleo || val.priceB2B || 0) : 0);
         if (val === undefined || val === null || isNaN(numVal) || numVal <= 0) {
           invalid.add(`tabA:${garment}:${fabric}`);
+          invalid.add(`tabA:${garment}:${fabric}:raleo`);
+          invalid.add(`tabA:${garment}:${fabric}:b2b`);
         }
       });
     });
 
     // Check Tab B (Special Presets)
-    const currentPresets = settingsForm.specialPresets || { "UDI Especial": settingsForm.udiPricing || {} };
+    const currentPresets = settingsForm.specialPresets || {};
     Object.keys(currentPresets).forEach(pKey => {
       const pData = currentPresets[pKey] || {};
       Object.keys(pData).forEach((garment) => {
         const fabrics = pData[garment] || {};
         Object.keys(fabrics).forEach((fabric) => {
+          if (METADATA_KEYS.has(fabric) || fabric.startsWith('_')) return;
           const val = fabrics[fabric];
           const numVal = typeof val === 'number' ? val : (typeof val === 'object' && val !== null ? Number(val.priceRaleo || val.priceB2B || 0) : 0);
           if (val === undefined || val === null || isNaN(numVal) || numVal <= 0) {
