@@ -1,4 +1,16 @@
 ## [Unreleased]
+### Switch Catalog Sync Receiver to Admin SDK Execution (`server.ts`)
+- **Admin SDK Execution**:
+  - In `handleCatalogSync` (supporting `/api/pricing/sync`, `/api/sync-to-ventas`, `/api/sync-pricing`, `/sync`), switched line 49 from client `setDoc` to:
+    ```ts
+    await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
+    ```
+  - Removed unused client `setDoc` import from `firebase/firestore`.
+  - Retained client `db` strictly for read operations in existing MCP routes (`staging_get_bundle`, `staging_get_pricing`, `staging_get_orders`, `staging_get_quotes`).
+- **Architectural Compliance**:
+  - `server.ts` maintained at 252 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Allow Public Pricing Read/Write in Firestore Security Rules & Client SDK Sync (`firestore.rules`, `server.ts`)
 - **Firestore Security Rules Authorization (`firestore.rules`)**:
   - Explicitly added match rule for `/pricing/{docId}` allowing `read, write: if true;`, authorizing server-to-server and client catalog synchronization while retaining `request.auth != null` for all sensitive application data (`orders`, `users`, `clientAccounts`, `masterContacts`, `settings`).

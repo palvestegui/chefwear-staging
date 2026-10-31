@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { db } from "./src/firebase";
 import { adminDb } from "./src/server/adminDb";
 
@@ -44,9 +44,9 @@ async function startServer() {
         lastSyncedAt: Date.now()
       };
 
-      // Write via client Firestore SDK with { merge: true } (authorized by firestore.rules for /pricing/{docId})
+      // Elevated permissions write via Admin SDK with { merge: true }
       // Zero Data Loss: NEVER overwrite or drop pricing.services, pricing.specialPresets, or discountRulesByTier
-      await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
+      await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
 
       return res.json({
         success: true,
@@ -54,11 +54,11 @@ async function startServer() {
         syncedCatalogCount: Array.isArray(payload.catalogGarments)
           ? payload.catalogGarments.length
           : Object.keys(payload.catalogGarments || {}).length,
-        message: 'Ventas Staging pricing/global successfully updated'
+        message: 'Ventas Staging pricing/global successfully updated via Admin SDK'
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Error syncing pricing to Ventas:", message);
+      console.error("Error syncing pricing to Ventas via Admin SDK:", message);
       return res.status(500).json({ success: false, error: message });
     }
   };
