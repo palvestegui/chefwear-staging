@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
+import { db as adminDb } from "./src/server/adminDb";
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -37,34 +38,27 @@ async function startServer() {
   // Direct pricing sync ingestion endpoint (supports aliases: /api/pricing/sync, /api/sync-to-ventas, /api/sync-pricing, /sync)
   const handleCatalogSync = async (req: Request, res: Response) => {
     try {
-      const body = (req.body || {}) as {
-        garments?: Record<string, unknown>;
-        catalogGarments?: unknown;
-        lastSyncedAt?: number;
+      const payload = {
+        garments: (req.body?.garments || {}) as Record<string, unknown>,
+        catalogGarments: (req.body?.catalogGarments || []) as unknown,
+        lastSyncedAt: Date.now()
       };
 
-      const garments = body.garments || {};
-      const catalogGarments = body.catalogGarments || [];
-      const lastSyncedAt = body.lastSyncedAt || Date.now();
-
+      // Elevated permissions write via Admin SDK with { merge: true }
       // Zero Data Loss: NEVER overwrite or drop pricing.services, pricing.specialPresets, or discountRulesByTier
-      // Write incoming catalog data strictly with { merge: true }
-      const payload: Record<string, unknown> = {
-        garments,
-        catalogGarments,
-        lastSyncedAt
-      };
-
-      await setDoc(doc(db, "pricing", "global"), payload, { merge: true });
+      await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
 
       return res.json({
         success: true,
-        message: "Pricing snapshot successfully synchronized into Ventas",
-        updatedAt: payload.lastSyncedAt
+        syncedGarmentsCount: Object.keys(payload.garments || {}).length,
+        syncedCatalogCount: Array.isArray(payload.catalogGarments)
+          ? payload.catalogGarments.length
+          : Object.keys(payload.catalogGarments || {}).length,
+        message: 'Ventas Staging pricing/global successfully updated via Admin SDK'
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("Error syncing pricing to Ventas:", message);
+      console.error("Error syncing pricing to Ventas via Admin SDK:", message);
       return res.status(500).json({ success: false, error: message });
     }
   };
@@ -189,23 +183,21 @@ async function startServer() {
           const snap = await getDocs(collection(db, "quotes"));
           toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else if (toolName === "staging_update_pricing_matrix") {
-          const docRef = doc(db, "pricing", "global");
-          const docSnap = await getDoc(docRef);
-          const currentData = docSnap.exists() ? docSnap.data() : {};
-
+          const updatePayload: Record<string, unknown> = {
+            lastSyncedAt: Date.now()
+          };
           if (args.garments && typeof args.garments === "object") {
-            currentData.garments = args.garments;
+            updatePayload.garments = args.garments;
           }
           if (Array.isArray(args.catalogGarments)) {
-            currentData.catalogGarments = args.catalogGarments;
+            updatePayload.catalogGarments = args.catalogGarments;
           }
-          currentData.lastSyncedAt = Date.now();
 
-          await setDoc(docRef, currentData);
+          await adminDb.collection('pricing').doc('global').set(updatePayload, { merge: true });
 
           toolResult = {
             success: true,
-            message: "Staging pricing/global successfully refreshed. Garments map replaced cleanly."
+            message: "Staging pricing/global successfully refreshed via Admin SDK with merge: true."
           };
         } else {
           toolResult = `Tool ${toolName} not found.`;

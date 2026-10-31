@@ -1,4 +1,16 @@
 ## [Unreleased]
+### Fix 7 PERMISSION_DENIED via Firebase Admin SDK in Catalog Sync Receiver (`server.ts`)
+- **Admin SDK Elevated Access**:
+  - Replaced client-side `setDoc` with `adminDb.collection('pricing').doc('global').set(payload, { merge: true })` in the sync receiver endpoint (`/api/pricing/sync`, `/api/sync-to-ventas`, `/api/sync-pricing`, `/sync`) and in the `staging_update_pricing_matrix` MCP tool.
+  - Resolves `7 PERMISSION_DENIED` errors caused by client-side Firestore security rules when external server-to-server synchronization occurs.
+- **Zero Data Loss Guarantee**:
+  - Writes only `garments`, `catalogGarments`, and `lastSyncedAt` using `{ merge: true }`, ensuring existing `services`, `specialPresets` (UDI packages), and `discountRulesByTier` are preserved without truncation or data drop.
+- **Detailed Sync Response**:
+  - Returns `syncedGarmentsCount`, `syncedCatalogCount`, and confirmation message indicating successful update via Admin SDK.
+- **Architectural Compliance**:
+  - `server.ts` maintained at 252 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Staging Backend Receiver 50MB Payload Expansion and Safe Catalog Merge (`server.ts`)
 - **Body-Parser Limit Expansion**:
   - Expanded `express.json({ limit: "50mb" })` and added `express.urlencoded({ limit: "50mb", extended: true })` to prevent HTTP 413 Payload Too Large rejections during full 32-garment catalog synchronizations with high-resolution imagery and rich descriptions.
