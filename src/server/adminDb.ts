@@ -1,16 +1,11 @@
-
 import { initializeApp, getApps, getApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
 
-interface ServerFirebaseConfig {
-  projectId?: string;
-}
+const app = getApps().length === 0
+  ? initializeApp({ projectId: firebaseConfig.projectId })
+  : getApp();
 
-const config: ServerFirebaseConfig = {
-  projectId: 'azafran-staging'
-};
-
-const app = getApps().length === 0 ? initializeApp({ projectId: config.projectId }) : getApp();
-
-export const db = getFirestore(app);
-
+// Connect specifically to the named Applet Firestore database
+export const adminDb = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = adminDb;

@@ -1,4 +1,16 @@
 ## [Unreleased]
+### Dynamic Firestore Configuration and Database Binding in Admin SDK (`src/server/adminDb.ts`, `server.ts`)
+- **Dynamic Project & Database ID Binding**:
+  - Replaced hardcoded dummy project configuration in `src/server/adminDb.ts` with dynamic import of `firebase-applet-config.json`.
+  - Initialized `initializeApp` using `firebaseConfig.projectId`.
+  - Targeted the specific named Applet Firestore database by invoking `getFirestore(app, firebaseConfig.firestoreDatabaseId)`.
+- **Dual Export Compatibility**:
+  - Exported both `adminDb` and `db` from `src/server/adminDb.ts` to satisfy both direct naming and aliased imports across `server.ts` and `pulseService.ts`.
+- **Architectural Compliance**:
+  - `src/server/adminDb.ts` is 11 lines (< 50 lines budget, Rule 300 compliant).
+  - `server.ts` maintained at 252 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Fix 7 PERMISSION_DENIED via Firebase Admin SDK in Catalog Sync Receiver (`server.ts`)
 - **Admin SDK Elevated Access**:
   - Replaced client-side `setDoc` with `adminDb.collection('pricing').doc('global').set(payload, { merge: true })` in the sync receiver endpoint (`/api/pricing/sync`, `/api/sync-to-ventas`, `/api/sync-pricing`, `/sync`) and in the `staging_update_pricing_matrix` MCP tool.

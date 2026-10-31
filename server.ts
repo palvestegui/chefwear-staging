@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
-import { db as adminDb } from "./src/server/adminDb";
+import { adminDb } from "./src/server/adminDb";
 
 interface JsonRpcRequest {
   jsonrpc: string;
