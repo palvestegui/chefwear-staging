@@ -127,16 +127,6 @@ export async function initStagingSeed(db: Firestore): Promise<void> {
         createdAt: timestamp,
         updatedAt: Date.now()
       });
-    } else {
-      const data = pricingSnap.data() || {};
-      const udiPreset = data.specialPresets?.['UDI Especial'];
-      const hasTestFilipina = Boolean(data.garments?.['TestFilipina']);
-      const missingServices = !Array.isArray(data.services) || data.services.length === 0;
-      
-      if (!udiPreset || hasTestFilipina || missingServices) {
-        console.log('[StagingSeeder] Restoring canonical UDI Especial presets, services, and cleaning TestFilipina...');
-        await restoreCanonicalUdiAndServices(db);
-      }
     }
   } catch (err: unknown) {
     console.warn('[StagingSeeder] Error during baseline seeding check:', err);

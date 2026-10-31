@@ -223,6 +223,9 @@ export interface PricingData {
   discountRulesByTier?: Record<string, TierDiscountRules>;
   specialPresetDiscounts?: Record<string, any>;
   specialPresets?: Record<string, any>;
+  specialPresetServices?: Record<string, any>;
+  specialPresetIncludedServices?: Record<string, any>;
+  specialPresetBundles?: Record<string, any>;
   garments?: Record<string, any>;
   udiPricing?: Record<string, any>;
   catalogGarments?: Record<string, CatalogGarmentPricing> | CatalogGarmentPricing[];

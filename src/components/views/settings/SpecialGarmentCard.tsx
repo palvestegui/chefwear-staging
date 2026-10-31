@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Edit2, Check, X, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import { isServiceApplicable, normalizeServiceApplicability } from '../../../utils/serviceUtils';
+import { Plus, Trash2, Edit2, Check, X } from 'lucide-react';
+import { GarmentServicesSection } from './GarmentServicesSection';
 
 export interface SpecialGarmentCardProps {
   garment: string;
@@ -13,6 +13,10 @@ export interface SpecialGarmentCardProps {
   setNewPresetFabricInputs: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   invalidPriceFields: Set<string>;
 }
+
+import { BASE_GARMENT_OPTIONS, getInferredBaseFamily } from '../../../utils/specialGarmentUtils';
+
+export { BASE_GARMENT_OPTIONS, getInferredBaseFamily };
 
 export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
   garment,
@@ -30,71 +34,106 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
   const [confirmDeleteGarment, setConfirmDeleteGarment] = useState(false);
   const [showServicesConfig, setShowServicesConfig] = useState(false);
 
+  const rawGarmentRecord = activePresetData[garment] || {};
+  const currentBaseGarment: string = rawGarmentRecord.baseGarment || getInferredBaseFamily(garment);
+
+  // Fabrics: all keys except 'baseGarment'
+  const fabricKeys = Object.keys(rawGarmentRecord).filter(k => k !== 'baseGarment');
+
   const allServices: any[] = settingsForm.services || [];
-  const standardGarments = Object.keys(settingsForm.garments || {});
 
-  const isServiceAllowed = (srv: any): boolean => {
-    return isServiceApplicable(srv, {
-      garmentName: garment,
-      presetKey: effectiveActivePreset,
-      isUdiMode: effectiveActivePreset === 'UDI Especial',
-      allStandardGarments: standardGarments,
-      allSpecialPresets: currentPresets
-    });
-  };
+  // Filter services compatible with chosen Prenda Base
+  const compatibleServices = allServices.filter((srv: any) => {
+    if (srv.isGlobal === true) return true;
+    if (srv.garment === currentBaseGarment) return true;
+    if (Array.isArray(srv.appliesToStandard) && srv.appliesToStandard.includes(currentBaseGarment)) return true;
+    return false;
+  });
 
-  const toggleService = (srvIndex: number) => {
-    const updatedServices = [...allServices];
-    const srv = normalizeServiceApplicability(updatedServices[srvIndex], standardGarments, currentPresets);
-    const specialMap = { ...(srv.appliesToSpecial || {}) };
-    const currentList = [...(specialMap[effectiveActivePreset] || [])];
+  // Section A: Included Services in Base Price
+  const includedServicesMap = settingsForm.specialPresetIncludedServices || {};
+  const presetIncluded = includedServicesMap[effectiveActivePreset] || {};
+  const garmentIncludedList: string[] = presetIncluded[garment] || [];
 
-    let nextList: string[];
-    if (currentList.includes(garment)) {
-      nextList = currentList.filter(g => g !== garment);
-    } else {
-      nextList = [...currentList, garment];
-    }
+  // Section B: Optional Services enabled in sales
+  const optionalServicesMap = settingsForm.specialPresetServices || {};
+  const presetOptional = optionalServicesMap[effectiveActivePreset] || {};
+  const garmentOptionalList: string[] = presetOptional[garment] || [];
 
-    specialMap[effectiveActivePreset] = nextList;
-
-    updatedServices[srvIndex] = {
-      ...srv,
-      isGlobal: false,
-      appliesToSpecial: specialMap
-    };
+  const handleBaseGarmentChange = (newBase: string) => {
+    const updatedPresets = { ...currentPresets };
+    const updatedPresetData = { ...(updatedPresets[effectiveActivePreset] || {}) };
+    const updatedGarment = { ...(updatedPresetData[garment] || {}) };
+    updatedGarment.baseGarment = newBase;
+    updatedPresetData[garment] = updatedGarment;
+    updatedPresets[effectiveActivePreset] = updatedPresetData;
 
     setSettingsForm((p: any) => ({
       ...p,
-      services: updatedServices
+      specialPresets: updatedPresets,
+      udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing
     }));
   };
 
-  const toggleAllServices = (allowAll: boolean) => {
-    const updatedServices = allServices.map(rawSrv => {
-      const srv = normalizeServiceApplicability(rawSrv, standardGarments, currentPresets);
-      const specialMap = { ...(srv.appliesToSpecial || {}) };
-      const currentList = [...(specialMap[effectiveActivePreset] || [])];
+  const handleToggleIncluded = (srvName: string) => {
+    const updatedIncludedMap = { ...(settingsForm.specialPresetIncludedServices || {}) };
+    const updatedPreset = { ...(updatedIncludedMap[effectiveActivePreset] || {}) };
+    const currentList = [...(updatedPreset[garment] || [])];
 
-      let nextList = currentList;
-      if (allowAll) {
-        if (!nextList.includes(garment)) nextList.push(garment);
-      } else {
-        nextList = nextList.filter(g => g !== garment);
-      }
+    const nextList = currentList.includes(srvName)
+      ? currentList.filter(s => s !== srvName)
+      : [...currentList, srvName];
 
-      specialMap[effectiveActivePreset] = nextList;
-
-      return {
-        ...srv,
-        isGlobal: false,
-        appliesToSpecial: specialMap
-      };
-    });
+    updatedPreset[garment] = nextList;
+    updatedIncludedMap[effectiveActivePreset] = updatedPreset;
 
     setSettingsForm((p: any) => ({
       ...p,
-      services: updatedServices
+      specialPresetIncludedServices: updatedIncludedMap
+    }));
+  };
+
+  const handleToggleOptional = (srvName: string) => {
+    const updatedOptionalMap = { ...(settingsForm.specialPresetServices || {}) };
+    const updatedPreset = { ...(updatedOptionalMap[effectiveActivePreset] || {}) };
+    const currentList = [...(updatedPreset[garment] || [])];
+
+    const nextList = currentList.includes(srvName)
+      ? currentList.filter(s => s !== srvName)
+      : [...currentList, srvName];
+
+    updatedPreset[garment] = nextList;
+    updatedOptionalMap[effectiveActivePreset] = updatedPreset;
+
+    setSettingsForm((p: any) => ({
+      ...p,
+      specialPresetServices: updatedOptionalMap
+    }));
+  };
+
+  const handleToggleAllIncluded = (enableAll: boolean) => {
+    const updatedIncludedMap = { ...(settingsForm.specialPresetIncludedServices || {}) };
+    const updatedPreset = { ...(updatedIncludedMap[effectiveActivePreset] || {}) };
+
+    updatedPreset[garment] = enableAll ? compatibleServices.map(s => s.name) : [];
+    updatedIncludedMap[effectiveActivePreset] = updatedPreset;
+
+    setSettingsForm((p: any) => ({
+      ...p,
+      specialPresetIncludedServices: updatedIncludedMap
+    }));
+  };
+
+  const handleToggleAllOptional = (enableAll: boolean) => {
+    const updatedOptionalMap = { ...(settingsForm.specialPresetServices || {}) };
+    const updatedPreset = { ...(updatedOptionalMap[effectiveActivePreset] || {}) };
+
+    updatedPreset[garment] = enableAll ? compatibleServices.map(s => s.name) : [];
+    updatedOptionalMap[effectiveActivePreset] = updatedPreset;
+
+    setSettingsForm((p: any) => ({
+      ...p,
+      specialPresetServices: updatedOptionalMap
     }));
   };
 
@@ -119,24 +158,35 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
     updatedPresetData[trimmed] = garmentData;
     updatedPresets[effectiveActivePreset] = updatedPresetData;
 
-    // Also update any service mapping referencing the old garment name
-    const updatedServices = allServices.map(rawSrv => {
-      const srv = normalizeServiceApplicability(rawSrv, standardGarments, currentPresets);
-      const specialMap = { ...(srv.appliesToSpecial || {}) };
-      if (specialMap[effectiveActivePreset]?.includes(garment)) {
-        specialMap[effectiveActivePreset] = specialMap[effectiveActivePreset].map(g => g === garment ? trimmed : g);
-      }
-      return {
-        ...srv,
-        appliesToSpecial: specialMap
-      };
-    });
+    // Migrate included and optional services maps
+    const incMap = { ...(settingsForm.specialPresetIncludedServices || {}) };
+    if (incMap[effectiveActivePreset]?.[garment]) {
+      incMap[effectiveActivePreset][trimmed] = incMap[effectiveActivePreset][garment];
+      delete incMap[effectiveActivePreset][garment];
+    }
+
+    const optMap = { ...(settingsForm.specialPresetServices || {}) };
+    if (optMap[effectiveActivePreset]?.[garment]) {
+      optMap[effectiveActivePreset][trimmed] = optMap[effectiveActivePreset][garment];
+      delete optMap[effectiveActivePreset][garment];
+    }
+
+    // Update bundles that reference this garment
+    const bundlesMap = { ...(settingsForm.specialPresetBundles || {}) };
+    if (Array.isArray(bundlesMap[effectiveActivePreset])) {
+      bundlesMap[effectiveActivePreset] = bundlesMap[effectiveActivePreset].map((b: any) => ({
+        ...b,
+        garments: (b.garments || []).map((g: string) => (g === garment ? trimmed : g))
+      }));
+    }
 
     setSettingsForm((p: any) => ({
       ...p,
       specialPresets: updatedPresets,
       udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing,
-      services: updatedServices
+      specialPresetIncludedServices: incMap,
+      specialPresetServices: optMap,
+      specialPresetBundles: bundlesMap
     }));
 
     setIsEditingName(false);
@@ -148,35 +198,41 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
     delete updatedPresetData[garment];
     updatedPresets[effectiveActivePreset] = updatedPresetData;
 
-    // Remove reference from services
-    const updatedServices = allServices.map(rawSrv => {
-      const srv = normalizeServiceApplicability(rawSrv, standardGarments, currentPresets);
-      const specialMap = { ...(srv.appliesToSpecial || {}) };
-      if (specialMap[effectiveActivePreset]?.includes(garment)) {
-        specialMap[effectiveActivePreset] = specialMap[effectiveActivePreset].filter(g => g !== garment);
-      }
-      return {
-        ...srv,
-        appliesToSpecial: specialMap
-      };
-    });
+    // Remove from services & bundles maps
+    const incMap = { ...(settingsForm.specialPresetIncludedServices || {}) };
+    if (incMap[effectiveActivePreset]?.[garment]) {
+      delete incMap[effectiveActivePreset][garment];
+    }
+
+    const optMap = { ...(settingsForm.specialPresetServices || {}) };
+    if (optMap[effectiveActivePreset]?.[garment]) {
+      delete optMap[effectiveActivePreset][garment];
+    }
+
+    const bundlesMap = { ...(settingsForm.specialPresetBundles || {}) };
+    if (Array.isArray(bundlesMap[effectiveActivePreset])) {
+      bundlesMap[effectiveActivePreset] = bundlesMap[effectiveActivePreset].map((b: any) => ({
+        ...b,
+        garments: (b.garments || []).filter((g: string) => g !== garment)
+      }));
+    }
 
     setSettingsForm((p: any) => ({
       ...p,
       specialPresets: updatedPresets,
       udiPricing: effectiveActivePreset === 'UDI Especial' ? updatedPresetData : p.udiPricing,
-      services: updatedServices
+      specialPresetIncludedServices: incMap,
+      specialPresetServices: optMap,
+      specialPresetBundles: bundlesMap
     }));
 
     setConfirmDeleteGarment(false);
   };
 
-  const activeServicesCount = allServices.filter(s => isServiceAllowed(s)).length;
-
   return (
     <div className="col-span-1 bg-stone-950 p-4 rounded-2xl border border-stone-800 space-y-3.5 flex flex-col justify-between">
       <div>
-        {/* Header with garment name & action buttons */}
+        {/* Header with commercial name & action buttons */}
         <div className="flex justify-between items-center border-b border-stone-900 pb-2.5 min-h-[36px]">
           {isEditingName ? (
             <div className="flex items-center gap-1.5 flex-1 mr-2">
@@ -193,7 +249,7 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
                   }
                 }}
                 className="bg-stone-900 border border-amber-500/60 px-2.5 py-1 rounded-lg text-xs font-black text-amber-400 outline-none w-full uppercase"
-                placeholder="Nombre de la prenda..."
+                placeholder="Nombre comercial..."
               />
               <button
                 type="button"
@@ -265,16 +321,34 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
           </div>
         </div>
 
+        {/* Prenda Base Dropdown Selector */}
+        <div className="mt-2.5 flex items-center justify-between bg-stone-900/60 px-3 py-1.5 rounded-xl border border-stone-850">
+          <span className="text-[10px] font-black uppercase tracking-wider text-stone-400">
+            Patrón Base:
+          </span>
+          <select
+            value={currentBaseGarment}
+            onChange={e => handleBaseGarmentChange(e.target.value)}
+            className="bg-stone-950 border border-stone-800 text-amber-400 font-bold text-[10px] rounded-lg px-2 py-1 outline-none uppercase focus:border-amber-500/50"
+          >
+            {BASE_GARMENT_OPTIONS.map(opt => (
+              <option key={opt} value={opt} className="bg-stone-900 text-stone-200">
+                {opt}
+              </option>
+            ))}
+          </select>
+        </div>
+
         {/* Fabrics and Pricing list */}
         <div className="flex flex-col gap-2 mt-3">
-          {Object.keys(activePresetData[garment] || {}).map(fabric => (
+          {fabricKeys.map(fabric => (
             <div key={fabric} className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-xl border border-stone-800/80">
               <span className="font-bold text-stone-300 text-xs truncate flex-1">{fabric}</span>
               <div className="flex items-center gap-2">
                 <div className="relative flex items-center">
                   <input
                     type="number"
-                    value={activePresetData[garment][fabric]}
+                    value={rawGarmentRecord[fabric]}
                     onChange={e => {
                       const nVal = parseFloat(e.target.value) || 0;
                       const updatedPresets = { ...currentPresets };
@@ -364,82 +438,19 @@ export const SpecialGarmentCard: React.FC<SpecialGarmentCardProps> = ({
         </div>
       </div>
 
-      {/* Servicios Adicionales (Tab C) Section */}
-      <div className="pt-3 border-t border-stone-900">
-        <button
-          type="button"
-          onClick={() => setShowServicesConfig(!showServicesConfig)}
-          className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-stone-400 hover:text-amber-400 transition py-1"
-        >
-          <span className="flex items-center gap-1.5">
-            <Sparkles size={12} className={activeServicesCount > 0 ? 'text-amber-500' : 'text-stone-600'} />
-            Servicios Adicionales (Tab C)
-          </span>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${activeServicesCount > 0 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-stone-900 text-stone-500'}`}>
-              {activeServicesCount} de {allServices.length} activos
-            </span>
-            {showServicesConfig ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-          </div>
-        </button>
-
-        {showServicesConfig && (
-          <div className="mt-2.5 p-3 bg-stone-900/90 rounded-xl border border-stone-800 space-y-2.5 animate-in fade-in">
-            <div className="flex justify-between items-center pb-1.5 border-b border-stone-800/80">
-              <span className="text-[9px] font-bold uppercase text-stone-500 tracking-wider">
-                Servicios compatibles con esta prenda:
-              </span>
-              <div className="flex gap-2 text-[9px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => toggleAllServices(true)}
-                  className="text-amber-400 hover:underline uppercase"
-                >
-                  Todos
-                </button>
-                <span className="text-stone-700">|</span>
-                <button
-                  type="button"
-                  onClick={() => toggleAllServices(false)}
-                  className="text-stone-500 hover:text-stone-300 uppercase"
-                >
-                  Ninguno
-                </button>
-              </div>
-            </div>
-
-            {allServices.length === 0 ? (
-              <p className="text-[10px] text-stone-500 italic py-1">
-                No hay servicios creados en Tab C.
-              </p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-1">
-                {allServices.map((srv: any, idx: number) => {
-                  const allowed = isServiceAllowed(srv);
-                  return (
-                    <button
-                      key={`${srv.name}-${idx}`}
-                      type="button"
-                      onClick={() => toggleService(idx)}
-                      className={`px-2.5 py-1 rounded-lg text-[9px] font-bold uppercase tracking-wider transition border flex items-center gap-1.5 ${
-                        allowed
-                          ? 'bg-amber-600 text-white border-amber-500 shadow-sm'
-                          : 'bg-stone-950 text-stone-500 border-stone-800 hover:border-stone-700 hover:text-stone-400'
-                      }`}
-                    >
-                      <span>{allowed ? '✓' : '+'}</span>
-                      <span>{srv.name}</span>
-                      {srv.price !== null && srv.price !== undefined && srv.price > 0 && (
-                        <span className="opacity-75 font-mono text-[8px]">(Bs{srv.price})</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Servicios Adicionales (Tab C) Section Modularized */}
+      <GarmentServicesSection
+        showServicesConfig={showServicesConfig}
+        setShowServicesConfig={setShowServicesConfig}
+        compatibleServices={compatibleServices}
+        allServicesCount={allServices.length}
+        isIncluded={srvName => garmentIncludedList.includes(srvName)}
+        isOptional={srvName => garmentOptionalList.includes(srvName)}
+        onToggleIncluded={handleToggleIncluded}
+        onToggleOptional={handleToggleOptional}
+        onToggleAllIncluded={handleToggleAllIncluded}
+        onToggleAllOptional={handleToggleAllOptional}
+      />
     </div>
   );
 };

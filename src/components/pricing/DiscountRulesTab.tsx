@@ -39,8 +39,8 @@ export const DiscountRulesTab: React.FC<DiscountRulesTabProps> = ({
     return initialRules !== currentRules;
   }, [pricing, settingsForm.discountRulesByTier, settingsForm.specialPresetDiscounts]);
 
-  // Strictly only core tiers: Estándar Raleo, Estándar B2B, UDI Especial (Contrato Institucional removed)
-  const coreTiers = ['Estándar Raleo', 'Estándar B2B', 'UDI Especial'];
+  // Core tiers strictly: Estándar Raleo, Estándar B2B. Corporate tiers derived dynamically from specialPresets
+  const coreTiers = ['Estándar Raleo', 'Estándar B2B'];
   const specialPresetKeys = Object.keys(settingsForm?.specialPresets || {}).filter(
     k => !coreTiers.includes(k) && k !== 'Contrato Institucional'
   );

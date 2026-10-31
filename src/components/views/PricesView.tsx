@@ -12,6 +12,7 @@ export const PricesView: React.FC<PricesViewProps> = ({ pricing }) => {
       cataloguePrices={pricing?.garments}
       udiPricing={pricing?.udiPricing}
       specialPresets={pricing?.specialPresets}
+      specialPresetBundles={pricing?.specialPresetBundles}
       services={pricing?.services}
     />
   );

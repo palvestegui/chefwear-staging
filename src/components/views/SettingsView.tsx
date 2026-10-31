@@ -116,6 +116,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               confirmDeletePreset={confirmDeletePreset}
               setConfirmDeletePreset={setConfirmDeletePreset}
               invalidPriceFields={invalidPriceFields}
+              onRequestSave={() => setShowPricingConfirm(true)}
             />
           )}
 
@@ -132,18 +133,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               setSettingsForm={setSettingsForm}
               pricing={pricing}
             />
-          )}
-
-          {activeSettingsTab === 'B' && (
-            <div className="flex justify-end mt-6">
-              <button
-                type="submit"
-                id="btn-save-global-prices"
-                className="w-auto ml-auto px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-xl bg-amber-500 text-stone-950 hover:bg-amber-400 shadow-md shadow-amber-500/20 transition-all flex items-center gap-2 cursor-pointer"
-              >
-                <CheckCircle2 size={15} /> Actualizar Precios Globales
-              </button>
-            </div>
           )}
         </form>
       )}

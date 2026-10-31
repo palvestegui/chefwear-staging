@@ -71,3 +71,14 @@ export interface CatalogGarmentPricing {
   backImage?: string;
   fabricVariants?: Record<string, FabricVariantPricing>;
 }
+
+export interface SpecialPresetBundle {
+  id: string;
+  name: string;
+  garments: string[];
+}
+
+export interface SpecialGarmentData {
+  baseGarment?: string;
+  [fabricName: string]: number | string | undefined;
+}

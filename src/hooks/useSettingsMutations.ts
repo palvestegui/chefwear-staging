@@ -9,6 +9,8 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
     udiPricing: {},
     specialPresets: {},
     specialPresetServices: {},
+    specialPresetIncludedServices: {},
+    specialPresetBundles: {},
     specialPresetDiscounts: {},
     discountRulesByTier: {},
     services: []
@@ -21,6 +23,8 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
         udiPricing: pricing.udiPricing || {},
         specialPresets: pricing.specialPresets || {},
         specialPresetServices: pricing.specialPresetServices || {},
+        specialPresetIncludedServices: pricing.specialPresetIncludedServices || {},
+        specialPresetBundles: pricing.specialPresetBundles || {},
         specialPresetDiscounts: pricing.specialPresetDiscounts || {},
         discountRulesByTier: pricing.discountRulesByTier || {},
         services: pricing.services || [],
@@ -39,7 +43,7 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
   const [editingName, setEditingName] = useState<string | null>(null);
   const [tempName, setTempName] = useState<string>('');
 
-  const [activeSpecialPreset, setActiveSpecialPreset] = useState<string>('UDI Especial');
+  const [activeSpecialPreset, setActiveSpecialPreset] = useState<string>('');
   const [newPresetNameInput, setNewPresetNameInput] = useState<string>('');
   const [showAddPresetInput, setShowAddPresetInput] = useState<boolean>(false);
   const [newPresetInput, setNewPresetInput] = useState<string>('');
@@ -167,15 +171,15 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
     }
     setShowPricingConfirm(false);
     try {
-      const updatedSpecialPresets = settingsForm.specialPresets || {
-        "UDI Especial": settingsForm.udiPricing || {}
-      };
-      const updatedUdiPricing = updatedSpecialPresets["UDI Especial"] || settingsForm.udiPricing || {};
+      const updatedSpecialPresets = settingsForm.specialPresets || {};
+      const updatedUdiPricing = updatedSpecialPresets["UDI Especial"] ? updatedSpecialPresets["UDI Especial"] : {};
 
       const payload = {
         ...settingsForm,
         specialPresets: updatedSpecialPresets,
         specialPresetServices: settingsForm.specialPresetServices || {},
+        specialPresetIncludedServices: settingsForm.specialPresetIncludedServices || {},
+        specialPresetBundles: settingsForm.specialPresetBundles || {},
         specialPresetDiscounts: settingsForm.specialPresetDiscounts || {},
         discountRulesByTier: settingsForm.discountRulesByTier || {},
         udiPricing: updatedUdiPricing,

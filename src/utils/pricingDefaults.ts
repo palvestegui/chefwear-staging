@@ -42,22 +42,10 @@ export const DEFAULT_PRICING: PricingData = {
     { name: 'Logo Espalda Grande', price: 40, type: 'Escala de Volumen (Logos)' },
     { name: 'Bolsillo Extra Filipina', price: 10, type: 'Opción de Confección' }
   ],
-  udiPricing: {
-    'Filipina': { 'Drill de 8oz': 110 },
-    'Pantalón': { 'Drill de 8oz': 100 },
-    'Mandil': { 'Drill de 8oz': 55 }
-  },
-  specialPresets: {
-    'UDI Especial': {
-      'Filipina': { 'Drill de 8oz': 110 },
-      'Pantalón': { 'Drill de 8oz': 100 },
-      'Mandil': { 'Drill de 8oz': 55 }
-    }
-  },
+  udiPricing: {},
+  specialPresets: {},
   discountRulesByTier: {
     'Estándar Raleo': DEFAULT_RALEO_DISCOUNT_RULES,
-    'Estándar B2B': DEFAULT_B2B_DISCOUNT_RULES,
-    'UDI Especial': DEFAULT_UDI_DISCOUNT_RULES,
-    'Contrato Institucional': DEFAULT_UDI_DISCOUNT_RULES
+    'Estándar B2B': DEFAULT_B2B_DISCOUNT_RULES
   }
 };

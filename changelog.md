@@ -1,4 +1,83 @@
 ## [Unreleased]
+### Dynamic Corporate Contracts Rendering in Tarifario (`PriceReference.tsx`, `CorporatePresetSection.tsx`, `PricesView.tsx`)
+- **Eliminated Hardcoded UDI Block from Tarifario (`src/components/PriceReference.tsx`)**:
+  - Removed legacy hardcoded fallback `pricing?.specialPresets?.['UDI Especial']` and the static UDI banner (`"Paquete Completo UDI... Total: 0 Bs"`).
+  - Replaced with dynamic corporate preset extraction:
+    ```ts
+    const corporatePresets = useMemo(() => {
+      const raw = explicitSpecialPresets || pricing?.specialPresets;
+      return raw && Object.keys(raw).length > 0 ? raw : null;
+    }, [explicitSpecialPresets, pricing?.specialPresets]);
+    ```
+  - When `pricing.specialPresets` is empty (`{}` or null), the bottom corporate agreement section is completely omitted, rendering only the clean base rate sheet without any red-box or 0 Bs banners.
+- **Dynamic Corporate Contract Presentation Component (`CorporatePresetSection.tsx`)**:
+  - Modularized component rendering all active corporate agreements dynamically:
+    * Displays official contract name, badge, and garments list with negotiated fabric prices.
+    * Highlights configured bundles (e.g., "Paquete Cocina", "Paquete Bartender") with component garment list and dynamic price summation.
+    * Integrates seamlessly with real-time search filtering.
+- **Architectural & Type Safety Compliance**:
+  - `PriceReference.tsx`: 346 lines (< 500 lines limit, Rule 500).
+  - `CorporatePresetSection.tsx`: 184 lines (< 500 lines limit, Rule 500).
+  - `PricesView.tsx`: 20 lines (< 500 lines limit, Rule 500).
+  - Strict TypeScript: Zero `any` additions, zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
+### Prevent UDI Especial Auto-Resurrection and Clean Slate Wipe (`stagingSeeder.ts`, `useSettingsMutations.ts`, `pricingDefaults.ts`)
+- **De-coupled Auto-Seeding from Startup Lifecycle (`src/utils/stagingSeeder.ts`)**:
+  - Removed `restoreCanonicalUdiAndServices()` invocation from `initStagingSeed`. The app startup lifecycle now never injects special presets automatically.
+  - Kept `restoreCanonicalUdiAndServices` exported strictly as a manual tool for `StagingMaintenanceView.tsx`.
+- **Database Wipe of Special Presets (`pricing/global`)**:
+  - Executed clean slate update on Firestore `pricing/global`:
+    * `specialPresets: {}`
+    * `udiPricing: {}`
+    * `specialPresetServices: {}`
+    * `specialPresetIncludedServices: {}`
+    * `specialPresetBundles: {}`
+    * Removed `"discountRulesByTier.UDI Especial"` via `deleteField()`
+  - Zero Data Loss: Standard `garments` (9 items), `catalogGarments` (23 items), `services` (50 items), and `discountRulesByTier['Estándar B2B']` were preserved intact.
+- **Removed Fallback Injection in Mutations Hook (`src/hooks/useSettingsMutations.ts`)**:
+  - Set `activeSpecialPreset` default state to `''` instead of `'UDI Especial'`.
+  - In `executeUpdatePricing`, replaced fallback to `udiPricing` so `updatedSpecialPresets` uses `settingsForm.specialPresets || {}`, and `udiPricing` is strictly set to `updatedSpecialPresets["UDI Especial"]` only if that key is actually present.
+- **Cleaned Baseline Constants (`src/utils/pricingDefaults.ts`)**:
+  - Emptied `udiPricing: {}`, `specialPresets: {}`, and removed `UDI Especial` / `Contrato Institucional` from `DEFAULT_PRICING.discountRulesByTier`.
+- **Architectural & Verification Compliance**:
+  - `stagingSeeder.ts`: 187 lines (< 300 lines limit, Rule 300).
+  - `useSettingsMutations.ts`: 246 lines (< 300 lines limit, Rule 300).
+  - `pricingDefaults.ts`: 51 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript: Zero `any` additions, zero `@ts-ignore`.
+  - Tested 3 consecutive page boots: `specialPresets: {}` confirmed persistent with zero auto-resurrection.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
+### Multi-Client Corporate Contract Builder (`SpecialGarmentCard.tsx`, `SpecialPresetsTab.tsx`, `ContractBundleManager.tsx`, `GarmentServicesSection.tsx`, `StickySpecialSaveBar.tsx`, `DiscountRulesTab.tsx`)
+- **Dynamic Multi-Client Contract Architecture**:
+  - Tab B starts with zero hardcoded presets; if no special presets exist, displays an inviting empty state with `[ + Nuevo Tarifario Especial ]`.
+  - Supports deleting any contract with a modal confirmation, automatically cleaning up linked entries from `specialPresets`, `specialPresetServices`, `specialPresetIncludedServices`, `specialPresetBundles`, and `discountRulesByTier`.
+- **Pattern-Based Base Garment Anchoring (`SpecialGarmentCard.tsx`)**:
+  - Added commercial name inline editing with instant renaming and validation.
+  - Added `Patrón Base` dropdown mapping each custom garment to one of the 9 workshop patterns: `[ Filipina | Pantalón | Mandil | Gorro | Camisa Columbia | Camisa (servicio) | Camisa (hospitalar) | Guardapolvo | Delantal ]`.
+  - Intelligently infers initial family via `getInferredBaseFamily` and persists under `activePresetData[garment].baseGarment`.
+- **Two Distinct Service Toggle Sections (`GarmentServicesSection.tsx`)**:
+  - Filters Tab C services strictly against the chosen `Prenda Base` (or `isGlobal === true`).
+  - **Section A (`🔒 Servicios / Especificaciones Incluidas en Precio Base`)**: Fixed workshop specifications not charged extra at point of sale, persisted in `specialPresetIncludedServices[presetKey][garment]`.
+  - **Section B (`⚙️ Servicios Opcionales Habilitados en Venta`)**: Confection choices (Bs0) and add-ons (+Bs) selectable in the quote generator, persisted in `specialPresetServices[presetKey][garment]`.
+- **Multi-Bundle Creation per Contract (`ContractBundleManager.tsx`)**:
+  - Allows creating multiple distinct bundles per contract (e.g., "Paquete Cocina", "Paquete Bartender").
+  - Includes commercial bundle naming, garment checklist selection, dynamic price summation, and bundle deletion.
+  - Persisted in `specialPresetBundles[presetKey] = Array<{ id: string, name: string, garments: string[] }>`.
+- **Dedicated Sticky Bottom Save Bar (`StickySpecialSaveBar.tsx`)**:
+  - Added persistent bottom dock in Tab B wired to the 2-step confirmation modal persisting changes to Firestore `pricing/global` with `{ merge: true }`.
+- **Dynamic Tier Synchronization in Tab D (`DiscountRulesTab.tsx`)**:
+  - Core tiers defined strictly as `['Estándar Raleo', 'Estándar B2B']`.
+  - Corporate tiers dynamically derived from `Object.keys(settingsForm?.specialPresets || {})`.
+- **Architectural & Type Safety Compliance**:
+  - `SpecialGarmentCard.tsx`: 456 lines (< 500 lines limit, Rule 500).
+  - `GarmentServicesSection.tsx`: 155 lines (< 500 lines limit, Rule 500).
+  - `ContractBundleManager.tsx`: 123 lines (< 500 lines limit, Rule 500).
+  - `StickySpecialSaveBar.tsx`: 38 lines (< 500 lines limit, Rule 500).
+  - `SpecialPresetsTab.tsx`: 416 lines (< 500 lines limit, Rule 500).
+  - `DiscountRulesTab.tsx`: 179 lines (< 500 lines limit, Rule 500).
+  - `useSettingsMutations.ts`: 246 lines (< 300 lines limit, Rule 300).
+  - `specialGarmentUtils.ts`: 26 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript: Zero `any` additions, strict `SpecialPresetBundle` and `SpecialGarmentData` typing.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Restore Canonical UDI Especial Presets, Purge TestFilipina, and Normalize Catalog Imagery (`stagingSeeder.ts`, `MasterDetailPricingView.tsx`, `CatalogPricingTab.tsx`, `CatalogReferenceCards.tsx`, `StagingMaintenanceView.tsx`)
 - **Canonical UDI Especial & Services Restoration (`src/utils/stagingSeeder.ts`)**:
   - Implemented and executed `restoreCanonicalUdiAndServices(db)` merging canonical presets:

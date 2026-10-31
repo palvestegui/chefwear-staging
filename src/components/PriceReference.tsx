@@ -10,9 +10,9 @@ import {
   Package,
   BookOpen
 } from 'lucide-react';
-import { getUdiBundleBreakdown } from '../utils/udiPackageUtils';
-import { CatalogGarmentPricing } from '../types';
+import { CatalogGarmentPricing, SpecialPresetBundle } from '../types';
 import { CatalogReferenceCards } from './pricing/CatalogReferenceCards';
+import { CorporatePresetSection } from './pricing/CorporatePresetSection';
 
 export interface ServiceItem {
   garment: string;
@@ -26,6 +26,7 @@ export interface PriceReferenceProps {
     garments?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number>>;
     udiPricing?: Record<string, Record<string, number> | number>;
     specialPresets?: Record<string, Record<string, Record<string, number> | number>>;
+    specialPresetBundles?: Record<string, SpecialPresetBundle[]>;
     services?: ServiceItem[];
     catalogGarments?: Record<string, CatalogGarmentPricing>;
     updatedAt?: number;
@@ -33,6 +34,7 @@ export interface PriceReferenceProps {
   cataloguePrices?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number>>;
   udiPricing?: Record<string, Record<string, number> | number>;
   specialPresets?: Record<string, Record<string, Record<string, number> | number>>;
+  specialPresetBundles?: Record<string, SpecialPresetBundle[]>;
   services?: ServiceItem[];
   catalogGarments?: Record<string, CatalogGarmentPricing>;
 }
@@ -62,17 +64,22 @@ const getGarmentOrderIndex = (name: string): number => {
 export const PriceReference: React.FC<PriceReferenceProps> = ({
   pricing,
   cataloguePrices,
-  udiPricing: explicitUdiPricing,
   specialPresets: explicitSpecialPresets,
+  specialPresetBundles: explicitBundles,
 }) => {
   // Consolidated reactive props from state
   const garmentsData = useMemo(() => {
     return cataloguePrices || pricing?.garments || {};
   }, [cataloguePrices, pricing?.garments]);
 
-  const udiData = useMemo(() => {
-    return explicitUdiPricing || pricing?.udiPricing || pricing?.specialPresets?.['UDI Especial'] || {};
-  }, [explicitUdiPricing, pricing?.udiPricing, pricing?.specialPresets]);
+  const corporatePresets = useMemo(() => {
+    const raw = explicitSpecialPresets || pricing?.specialPresets;
+    return raw && Object.keys(raw).length > 0 ? raw : null;
+  }, [explicitSpecialPresets, pricing?.specialPresets]);
+
+  const bundlesByPreset = useMemo(() => {
+    return explicitBundles || pricing?.specialPresetBundles || {};
+  }, [explicitBundles, pricing?.specialPresetBundles]);
 
   // View mode tab switcher: 'base' vs. 'catalogo'
   const [activeTab, setActiveTab] = useState<'base' | 'catalogo'>('base');
@@ -162,32 +169,6 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
 
     return cards;
   }, [garmentsData, searchQuery]);
-
-  // Compute UDI bundle prices and total
-  const udiSummary = useMemo(() => {
-    return getUdiBundleBreakdown(udiData);
-  }, [udiData]);
-
-  // Filter UDI garments if searching
-  const filteredUdiGarments = useMemo(() => {
-    const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    const garmentKeys = Object.keys(udiData);
-
-    if (tokens.length === 0) return garmentKeys;
-
-    return garmentKeys.filter(gName => {
-      const gData = (udiData as any)[gName] || {};
-      const fabricKeys = typeof gData === 'object' && gData !== null ? Object.keys(gData) : [];
-      const combinedText = `udi ${gName.toLowerCase()} ${fabricKeys.join(' ').toLowerCase()}`;
-
-      return tokens.every(token => 
-        'udi'.includes(token) ||
-        gName.toLowerCase().includes(token) || 
-        fabricKeys.some(f => f.toLowerCase().includes(token)) ||
-        combinedText.includes(token)
-      );
-    });
-  }, [udiData, searchQuery]);
 
   return (
     <div className="space-y-6 animate-in fade-in max-w-6xl mx-auto pb-16">
@@ -345,98 +326,12 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
         )}
       </div>
 
-      {/* ========================================================================= */}
-      {/* 2. UDI SECTION (BELOW)                                                    */}
-      {/* Mirrors the exact disposition, structure, columns, & layout in Ajustes    */}
-      {/* ========================================================================= */}
-      <div className="space-y-6 pt-4 border-t border-stone-800">
-        {/* Header and Controls for Active Preset (Mirrors Ajustes Tab B Header) */}
-        <div className="bg-stone-950 p-5 md:p-6 rounded-2xl border border-stone-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h4 className="font-black text-amber-500 text-sm md:text-base uppercase tracking-wider">
-                UDI Especial
-              </h4>
-              <span className="text-[9px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-black uppercase tracking-widest">
-                Contrato Institucional Oficial
-              </span>
-            </div>
-            <p className="text-[10px] text-stone-500 font-bold mt-1">
-              Precios fijos acordados para este cliente o convenio especial.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-stone-400 uppercase tracking-widest bg-stone-900 px-3 py-1.5 rounded-xl border border-stone-800">
-            <Award size={14} className="text-amber-400" />
-            <span>Convenio Activo</span>
-          </div>
-        </div>
-
-        {/* Summary Banner for UDI Bundle (Mirrors Ajustes Tab B Summary Banner) */}
-        <div className="bg-amber-950/30 border border-amber-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-bold text-amber-200/90 shadow-sm">
-          <span className="uppercase tracking-wide flex items-center gap-2">
-            <span>📦 Paquete Completo UDI: Mandil ({udiSummary.mandil.price} Bs) + Filipina ({udiSummary.filipina.price} Bs) + Pantalón ({udiSummary.pantalon.price} Bs) + Gorro ({udiSummary.gorro.price} Bs)</span>
-          </span>
-          <span className="font-mono font-black text-amber-400 bg-amber-500/20 border border-amber-500/30 px-3 py-1 rounded-lg shrink-0">
-            Total: {udiSummary.total} Bs
-          </span>
-        </div>
-
-        {/* Garment Cards Grid for Active Preset (Mirrors Ajustes Tab B Grid) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredUdiGarments.map((garment) => {
-            const garmentFabrics = (udiData as any)[garment] || {};
-            const fabricKeys = typeof garmentFabrics === 'object' && garmentFabrics !== null 
-              ? Object.keys(garmentFabrics) 
-              : [];
-
-            return (
-              <div key={garment} className="col-span-1 bg-stone-950 p-4 rounded-xl border border-stone-800 space-y-3">
-                <div className="flex justify-between items-center border-b border-stone-900 pb-2">
-                  <h4 className="font-black text-amber-500 uppercase tracking-widest text-xs">
-                    {garment}
-                  </h4>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  {fabricKeys.map((fabric) => {
-                    const priceValue = typeof garmentFabrics[fabric] === 'number' 
-                      ? garmentFabrics[fabric] 
-                      : (typeof garmentFabrics === 'number' ? garmentFabrics : 0);
-
-                    return (
-                      <div key={fabric} className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-lg border border-stone-800">
-                        <span className="font-bold text-stone-300 text-xs truncate flex-1">
-                          {fabric}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <div className="bg-stone-950 px-3 py-1 rounded border border-stone-700 text-amber-500 text-xs font-mono font-bold text-right">
-                            <span className="text-[10px] text-stone-500 mr-1">Bs</span>
-                            {priceValue}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {fabricKeys.length === 0 && typeof garmentFabrics === 'number' && (
-                    <div className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-lg border border-stone-800">
-                      <span className="font-bold text-stone-300 text-xs truncate flex-1">
-                        Estándar
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        <div className="bg-stone-950 px-3 py-1 rounded border border-stone-700 text-amber-500 text-xs font-mono font-bold text-right">
-                          <span className="text-[10px] text-stone-500 mr-1">Bs</span>
-                          {garmentFabrics}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* Dynamic Corporate Contracts Section (Only rendered when specialPresets exist) */}
+      <CorporatePresetSection
+        corporatePresets={corporatePresets}
+        bundlesByPreset={bundlesByPreset}
+        searchQuery={searchQuery}
+      />
     </>
   )}
 
