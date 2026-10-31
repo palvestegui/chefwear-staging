@@ -21,6 +21,11 @@ export interface CatalogGarmentRecord {
   defaultFabric?: string;
   priceRaleo?: number;
   priceB2B?: number;
+  imageUrl?: string;
+  frontImage?: string;
+  image?: string;
+  backImageUrl?: string;
+  backImage?: string;
   fabricVariants?: Record<string, CatalogGarmentVariant>;
   variants?: CatalogGarmentVariant[];
 }
@@ -107,6 +112,11 @@ export const CatalogPricingTab: React.FC<CatalogPricingTabProps> = ({ pricing })
         defaultFabric: primaryFabric,
         defaultRaleoPrice: g.priceRaleo,
         defaultB2BPrice: g.priceB2B,
+        imageUrl: g.imageUrl,
+        frontImage: g.frontImage,
+        image: g.image,
+        backImageUrl: g.backImageUrl,
+        backImage: g.backImage,
         variants
       };
     });

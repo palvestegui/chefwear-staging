@@ -6,8 +6,11 @@ import {
   limit, 
   query, 
   setDoc, 
+  updateDoc,
+  deleteField,
   Firestore 
 } from 'firebase/firestore';
+import canonicalServicesAndUdi from '../data/canonicalServicesAndUdi.json';
 import { DEFAULT_PRICING, DEFAULT_FALLBACK_ACCOUNT } from './pricingDefaults';
 
 export { DEFAULT_FALLBACK_ACCOUNT };
@@ -124,8 +127,71 @@ export async function initStagingSeed(db: Firestore): Promise<void> {
         createdAt: timestamp,
         updatedAt: Date.now()
       });
+    } else {
+      const data = pricingSnap.data() || {};
+      const udiPreset = data.specialPresets?.['UDI Especial'];
+      const hasTestFilipina = Boolean(data.garments?.['TestFilipina']);
+      const missingServices = !Array.isArray(data.services) || data.services.length === 0;
+      
+      if (!udiPreset || hasTestFilipina || missingServices) {
+        console.log('[StagingSeeder] Restoring canonical UDI Especial presets, services, and cleaning TestFilipina...');
+        await restoreCanonicalUdiAndServices(db);
+      }
     }
   } catch (err: unknown) {
     console.warn('[StagingSeeder] Error during baseline seeding check:', err);
+  }
+}
+
+/**
+ * Restores canonical UDI Especial presets (with exact names), discounts, and 50 services,
+ * and purges orphaned TestFilipina from pricing.garments without touching standard garments or catalogGarments.
+ */
+export async function restoreCanonicalUdiAndServices(firestoreDb: Firestore): Promise<void> {
+  const udiPayload: Record<string, unknown> = {
+    specialPresets: {
+      "UDI Especial": {
+        "Filipina UDI": { "Drill de 8oz": 253 },
+        "Pantalón UDI": { "Drill de 8oz": 190 },
+        "Mandil UDI": { "Tornado (Bull Denim)": 149 },
+        "Gorro UDI": { "Drill de 8oz": 35 }
+      }
+    },
+    udiPricing: {
+      "Filipina UDI": { "Drill de 8oz": 253 },
+      "Pantalón UDI": { "Drill de 8oz": 190 },
+      "Mandil UDI": { "Tornado (Bull Denim)": 149 },
+      "Gorro UDI": { "Drill de 8oz": 35 }
+    },
+    services: canonicalServicesAndUdi.services,
+    discountRulesByTier: {
+      "Estándar B2B": {
+        maxSellerDiscountPercent: 5,
+        cashDiscountPercent: 3,
+        cashDiscountEnabled: true,
+        sellerDiscountEnabled: true,
+        fullPackageDiscountPercent: 0,
+        volumeDiscountEnabled: false,
+        cashDiscountMinAmount: 500,
+        volumeTiers: [
+          { minQuantity: 3, discountPercent: 3 },
+          { minQuantity: 6, discountPercent: 7 },
+          { minQuantity: 12, discountPercent: 10 }
+        ]
+      }
+    },
+    updatedAt: Date.now()
+  };
+
+  // 1. Merge UDI presets, 50 services, and discount rules safely
+  await setDoc(doc(firestoreDb, 'pricing', 'global'), udiPayload, { merge: true });
+
+  // 2. Remove orphaned TestFilipina from garments
+  try {
+    await updateDoc(doc(firestoreDb, 'pricing', 'global'), {
+      "garments.TestFilipina": deleteField()
+    });
+  } catch (cleanErr: unknown) {
+    console.warn('[StagingSeeder] TestFilipina cleanup notice:', cleanErr);
   }
 }

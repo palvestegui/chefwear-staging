@@ -23,6 +23,7 @@ import {
   resetCatalogPricing, 
   restoreCanonicalServices 
 } from '../../../utils/maintenanceUtils';
+import { restoreCanonicalUdiAndServices } from '../../../utils/stagingSeeder';
 import { MaintenanceActionCard } from './MaintenanceActionCard';
 import canonicalData from '../../../data/canonicalServicesAndUdi.json';
 import { PricingData } from '../../../types';
@@ -109,8 +110,8 @@ export const StagingMaintenanceView: React.FC<StagingMaintenanceViewProps> = ({
     setIsRestoringServices(true);
     setSuccessMessage(null);
     try {
-      await restoreCanonicalServices(firestore, canonicalData);
-      notifyResult("✓ Servicios y tarifas UDI restaurados con éxito desde datos canónicos");
+      await restoreCanonicalUdiAndServices(firestore);
+      notifyResult("✓ Servicios y tarifas canónicas UDI restaurados con éxito");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       notifyResult(`Error al restaurar servicios: ${msg}`, true);

@@ -18,6 +18,11 @@ export interface MasterDetailPricingItem {
   defaultFabric?: string;
   defaultRaleoPrice?: number;
   defaultB2BPrice?: number;
+  imageUrl?: string;
+  frontImage?: string;
+  image?: string;
+  backImageUrl?: string;
+  backImage?: string;
   variants: PricingVariant[];
 }
 
@@ -151,23 +156,39 @@ export const MasterDetailPricingView: React.FC<MasterDetailPricingViewProps> = (
                     isSelected ? 'bg-amber-500/10 border-amber-500/50 text-white shadow-md' : 'bg-stone-900/40 border-stone-800/70 text-stone-300 hover:bg-stone-900 hover:border-stone-700'
                   }`}
                 >
-                  {/* Line 1 (Title): Full product name without truncation, wrapping cleanly */}
-                  <h4 className="text-sm font-bold text-amber-50 leading-snug whitespace-normal break-words">
-                    {item.name}
-                  </h4>
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="min-w-0 flex-1">
+                      {/* Line 1 (Title): Full product name without truncation, wrapping cleanly */}
+                      <h4 className="text-sm font-bold text-amber-50 leading-snug whitespace-normal break-words">
+                        {item.name}
+                      </h4>
 
-                  {/* Line 2 (Badges): SKU badge & category pill in a flex-wrap row */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {item.sku && (
-                      <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
-                        [ SKU: {item.sku} ]
-                      </span>
-                    )}
-                    {item.category && (
-                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-stone-800 text-stone-300 font-mono">
-                        {item.category}
-                      </span>
-                    )}
+                      {/* Line 2 (Badges): SKU badge & category pill in a flex-wrap row */}
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        {item.sku && (
+                          <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                            [ SKU: {item.sku} ]
+                          </span>
+                        )}
+                        {item.category && (
+                          <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-stone-800 text-stone-300 font-mono">
+                            {item.category}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {(() => {
+                      const photo = item.imageUrl || item.frontImage || item.image || null;
+                      if (!photo) return null;
+                      return (
+                        <img
+                          src={photo}
+                          alt={item.name}
+                          className="w-12 h-12 object-cover rounded-xl border border-stone-800 shrink-0 bg-stone-950"
+                        />
+                      );
+                    })()}
                   </div>
 
                   {/* Line 3 (Details): Available fabrics count */}
@@ -190,24 +211,61 @@ export const MasterDetailPricingView: React.FC<MasterDetailPricingViewProps> = (
           </div>
         ) : (
           <>
-            {/* Header: Name, SKU badge, category badge, and description */}
-            <div className="border-b border-stone-800/80 pb-4 flex flex-col gap-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-lg font-black text-white uppercase tracking-tight">{activeItem.name}</h3>
-                {activeItem.sku && (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold">
-                    [ SKU: {activeItem.sku} ]
-                  </span>
-                )}
-                {activeItem.category && (
-                  <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-stone-800 border border-stone-700 text-stone-300 font-bold">
-                    {activeItem.category}
-                  </span>
+            {/* Header: Name, SKU badge, category badge, photos, and description */}
+            <div className="border-b border-stone-800/80 pb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+              <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-white uppercase tracking-tight">{activeItem.name}</h3>
+                  {activeItem.sku && (
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold">
+                      [ SKU: {activeItem.sku} ]
+                    </span>
+                  )}
+                  {activeItem.category && (
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-stone-800 border border-stone-700 text-stone-300 font-bold">
+                      {activeItem.category}
+                    </span>
+                  )}
+                </div>
+                {activeItem.description && (
+                  <p className="text-xs text-stone-400 font-mono leading-relaxed">{activeItem.description}</p>
                 )}
               </div>
-              {activeItem.description && (
-                <p className="text-xs text-stone-400 font-mono">{activeItem.description}</p>
-              )}
+
+              {/* Garment Photographs (Front & Back) */}
+              {(() => {
+                const frontPhoto = activeItem.imageUrl || activeItem.frontImage || activeItem.image || null;
+                const backPhoto = activeItem.backImageUrl || activeItem.backImage || null;
+                if (!frontPhoto && !backPhoto) return null;
+                return (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {frontPhoto && (
+                      <div className="relative group">
+                        <img
+                          src={frontPhoto}
+                          alt={`${activeItem.name} frontal`}
+                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl border border-stone-800 shadow-sm bg-stone-950"
+                        />
+                        <span className="absolute bottom-1 right-1 text-[8px] font-mono font-bold bg-stone-900/90 text-stone-300 px-1 rounded border border-stone-700/60">
+                          Frente
+                        </span>
+                      </div>
+                    )}
+                    {backPhoto && (
+                      <div className="relative group">
+                        <img
+                          src={backPhoto}
+                          alt={`${activeItem.name} espalda`}
+                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-xl border border-stone-800 shadow-sm bg-stone-950"
+                        />
+                        <span className="absolute bottom-1 right-1 text-[8px] font-mono font-bold bg-stone-900/90 text-stone-300 px-1 rounded border border-stone-700/60">
+                          Espalda
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Featured Primary Fabric Banner */}

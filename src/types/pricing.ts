@@ -65,5 +65,9 @@ export interface CatalogGarmentPricing {
   description?: string;
   category?: string;
   imageUrl?: string;
+  frontImage?: string;
+  image?: string;
+  backImageUrl?: string;
+  backImage?: string;
   fabricVariants?: Record<string, FabricVariantPricing>;
 }

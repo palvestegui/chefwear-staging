@@ -1,4 +1,32 @@
 ## [Unreleased]
+### Restore Canonical UDI Especial Presets, Purge TestFilipina, and Normalize Catalog Imagery (`stagingSeeder.ts`, `MasterDetailPricingView.tsx`, `CatalogPricingTab.tsx`, `CatalogReferenceCards.tsx`, `StagingMaintenanceView.tsx`)
+- **Canonical UDI Especial & Services Restoration (`src/utils/stagingSeeder.ts`)**:
+  - Implemented and executed `restoreCanonicalUdiAndServices(db)` merging canonical presets:
+    * `Filipina UDI`: `Drill de 8oz` (Bs253)
+    * `Pantalón UDI`: `Drill de 8oz` (Bs190)
+    * `Mandil UDI`: `Tornado (Bull Denim)` (Bs149)
+    * `Gorro UDI`: `Drill de 8oz` (Bs35)
+    * Package total: **Bs627.00**
+  - Restored the 50 workshop tailoring/embroidery services and Estándar B2B discount rules into `pricing/global` using `{ merge: true }` without overwriting catalog data.
+  - Purged orphaned `TestFilipina` entry from `pricing.garments` via `updateDoc` with `deleteField()`.
+  - Added auto-healing to `initStagingSeed` and wired into `StagingMaintenanceView.tsx` under `executeRestoreServicesAndUdi`.
+- **Normalized Catalog Image Resolution & Multi-View Rendering**:
+  - Updated `CatalogReferenceCards.tsx`, `CatalogPricingTab.tsx`, and `MasterDetailPricingView.tsx` to inspect all image aliases:
+    ```tsx
+    const frontPhoto = garment.imageUrl || garment.frontImage || garment.image || null;
+    const backPhoto = garment.backImageUrl || garment.backImage || null;
+    ```
+  - `MasterDetailPricingView.tsx`: Rendered front thumbnails in the left master list and clean front & back photograph cards in the detail pane.
+  - `CatalogReferenceCards.tsx`: Rendered base64 photographs cleanly when `frontPhoto` is present.
+- **Architectural Compliance**:
+  - `MasterDetailPricingView.tsx`: 356 lines (< 500 lines limit, Rule 500).
+  - `CatalogPricingTab.tsx`: 134 lines (< 500 lines limit, Rule 500).
+  - `CatalogReferenceCards.tsx`: 152 lines (< 500 lines limit, Rule 500).
+  - `stagingSeeder.ts`: 197 lines (< 300 lines limit, Rule 300).
+  - `StagingMaintenanceView.tsx`: 295 lines (< 500 lines limit, Rule 500).
+  - `src/types/pricing.ts`: 73 lines (< 300 lines limit, Rule 300).
+  - Strict TypeScript with zero `any` additions and zero `@ts-ignore`.
+  - Verified with `npx tsc --noEmit` and `compile_applet`.
 ### Named Firestore Database Binding & Resilient Sync Ingestion (`src/firebase.ts`, `server.ts`)
 - **Named Database Binding (`src/firebase.ts`)**:
   - Bound `getFirestore` explicitly to `firebaseConfig.firestoreDatabaseId` (`ai-studio-staging-ab4c50fd-e8ed-40a2-a91c-6782ae7f098e`), ensuring all client Firestore calls target the provisioned database where `firestore.rules` are active.

@@ -89,13 +89,17 @@ export const CatalogReferenceCards: React.FC<CatalogReferenceCardsProps> = ({
                     </span>
                   )}
                 </div>
-                {data.imageUrl && (
-                  <img
-                    src={data.imageUrl}
-                    alt={name}
-                    className="w-14 h-14 object-cover rounded-2xl border border-stone-800 shrink-0 bg-stone-950"
-                  />
-                )}
+                {(() => {
+                  const frontPhoto = data.imageUrl || data.frontImage || data.image || null;
+                  if (!frontPhoto) return null;
+                  return (
+                    <img
+                      src={frontPhoto}
+                      alt={name}
+                      className="w-14 h-14 object-cover rounded-2xl border border-stone-800 shrink-0 bg-stone-950"
+                    />
+                  );
+                })()}
               </div>
 
               {data.fabric && (
