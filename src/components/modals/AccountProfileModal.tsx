@@ -18,20 +18,21 @@ import {
   Trash2,
   AlertCircle
 } from 'lucide-react';
-import { doc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { doc, deleteDoc, updateDoc, Firestore } from 'firebase/firestore';
 import { normalizePricingTier, isSystemAccount } from '../../utils/constants';
 import { SocialBadges } from '../crm/SocialBadges';
+import { ClientAccount } from '../../types/crm';
 
 export interface AccountProfileModalProps {
-  account: any | null;
+  account: ClientAccount | null;
   isOpen: boolean;
   onClose: () => void;
-  onOpenEdit?: (account: any) => void;
+  onOpenEdit?: (account: ClientAccount) => void;
   onViewHistory?: (accountId: string) => void;
-  onRequestDelete?: (account: any) => void;
-  onDeleteAccount?: (account: any) => Promise<void> | void;
-  clientAccounts?: any[];
-  db?: any;
+  onRequestDelete?: (account: ClientAccount) => void;
+  onDeleteAccount?: (account: ClientAccount) => Promise<void> | void;
+  clientAccounts?: ClientAccount[];
+  db?: Firestore;
 }
 
 export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
@@ -49,6 +50,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
   const [isBrandingOpen, setIsBrandingOpen] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [activeLightboxImage, setActiveLightboxImage] = useState<string | null>(null);
 
   if (!isOpen || !account) return null;
 
@@ -69,10 +71,18 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
   // Contact Person formatting
   const contactPersonName = `${account.contactNombre || ''} ${account.contactApellido || ''}`.trim();
 
-  // Logo placements
+  // Logo placements & URLs
   const placements: string[] = Array.isArray(account.logoPlacements)
     ? account.logoPlacements.filter((p: string) => p && p.trim() !== '')
     : [];
+
+  const logoList: string[] = (
+    account.logoUrls && account.logoUrls.length > 0
+      ? account.logoUrls
+      : account.logoUrl
+        ? [account.logoUrl]
+        : []
+  ).filter((url): url is string => Boolean(url && url.trim()));
 
   return (
     <div className="fixed inset-0 bg-stone-950/80 backdrop-blur-sm flex items-center justify-center z-[100] p-3 sm:p-4 md:p-6 animate-in fade-in">
@@ -126,15 +136,10 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-3 bg-stone-950 p-4 rounded-2xl border border-stone-800">
             <div>
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Razón Social / Nombre de Cuenta</p>
-              <h2 className="text-xl font-black text-stone-100 uppercase tracking-tight">
-                {account.accountName || 'Sin Nombre'}
-              </h2>
+              <h2 className="text-xl font-black text-stone-100 uppercase tracking-tight">{account.accountName || 'Sin Nombre'}</h2>
               {parentAccount && (
                 <p className="text-xs text-stone-400 mt-0.5">
-                  Sucursal de:{' '}
-                  <strong className="text-stone-300 font-bold">
-                    {parentAccount.accountName} ({parentAccount.accountId})
-                  </strong>
+                  Sucursal de: <strong className="text-stone-300 font-bold">{parentAccount.accountName} ({parentAccount.accountId})</strong>
                 </p>
               )}
             </div>
@@ -152,14 +157,8 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Contact Person */}
             <div className="bg-stone-950 p-3.5 rounded-2xl border border-stone-800 flex flex-col justify-between">
-              <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">
-                Persona de Contacto
-              </span>
-              <div className="mt-1">
-                <p className="text-xs font-bold text-stone-200">
-                  {contactPersonName || 'No especificada'}
-                </p>
-              </div>
+              <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Persona de Contacto</span>
+              <p className="text-xs font-bold text-stone-200 mt-1">{contactPersonName || 'No especificada'}</p>
             </div>
 
             {/* Phone & WhatsApp */}
@@ -168,16 +167,9 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                 <Phone size={13} className="text-amber-400" /> Teléfono / WhatsApp
               </span>
               <div className="mt-1 flex items-center justify-between gap-2">
-                <span className="text-xs font-mono font-bold text-stone-200">
-                  {rawPhone || 'No registrado'}
-                </span>
+                <span className="text-xs font-mono font-bold text-stone-200">{rawPhone || 'No registrado'}</span>
                 {waUrl && (
-                  <a
-                    href={waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-400 bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-800/60 px-2.5 py-1 rounded-lg transition tracking-wide"
-                  >
+                  <a href={waUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-400 bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-800/60 px-2.5 py-1 rounded-lg transition tracking-wide">
                     <MessageSquare size={12} /> WhatsApp
                   </a>
                 )}
@@ -191,10 +183,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
               </span>
               <div className="mt-1">
                 {account.email ? (
-                  <a
-                    href={`mailto:${account.email}`}
-                    className="text-xs font-mono text-stone-300 hover:text-amber-400 transition"
-                  >
+                  <a href={`mailto:${account.email}`} className="text-xs font-mono text-stone-300 hover:text-amber-400 transition">
                     {account.email}
                   </a>
                 ) : (
@@ -219,16 +208,9 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
           >
             <div className="flex items-center gap-2">
               <Truck size={16} className="text-amber-400" />
-              <span className="text-xs font-black text-stone-200 uppercase tracking-wider">
-                📍 Logística & Entrega
-              </span>
+              <span className="text-xs font-black text-stone-200 uppercase tracking-wider">📍 Logística & Entrega</span>
             </div>
-            <ChevronDown
-              size={16}
-              className={`text-stone-400 transition-transform duration-200 ${
-                isLogisticsOpen ? 'rotate-180 text-amber-400' : ''
-              }`}
-            />
+            <ChevronDown size={16} className={`text-stone-400 transition-transform duration-200 ${isLogisticsOpen ? 'rotate-180 text-amber-400' : ''}`} />
           </button>
 
           {isLogisticsOpen && (
@@ -238,18 +220,14 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                   <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
                     <MapPin size={12} className="text-amber-400" /> Ciudad de Entrega
                   </span>
-                  <p className="text-xs font-bold text-stone-200 mt-1">
-                    {account.deliveryCity || 'Santa Cruz'}
-                  </p>
+                  <p className="text-xs font-bold text-stone-200 mt-1">{account.deliveryCity || 'Santa Cruz'}</p>
                 </div>
 
                 <div className="bg-stone-900/90 border border-stone-800/80 rounded-xl p-3">
                   <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Truck size={12} className="text-emerald-400" /> Dirección de Entrega
                   </span>
-                  <p className="text-xs text-stone-300 mt-1">
-                    {account.deliveryAddress || 'No especificada'}
-                  </p>
+                  <p className="text-xs text-stone-300 mt-1">{account.deliveryAddress || 'No especificada'}</p>
                 </div>
               </div>
 
@@ -258,9 +236,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                   <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
                     <FileText size={12} className="text-blue-400" /> Notas de Despacho
                   </span>
-                  <p className="text-xs text-stone-300 mt-1 whitespace-pre-wrap">
-                    {account.deliveryNotes}
-                  </p>
+                  <p className="text-xs text-stone-300 mt-1 whitespace-pre-wrap">{account.deliveryNotes}</p>
                 </div>
               )}
             </div>
@@ -308,10 +284,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                 {placements.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
                     {placements.map((plc, idx) => (
-                      <span
-                        key={idx}
-                        className="bg-stone-900 border border-stone-800 px-2.5 py-1 rounded-lg text-xs font-bold text-stone-300"
-                      >
+                      <span key={idx} className="bg-stone-900 border border-stone-800 px-2.5 py-1 rounded-lg text-xs font-bold text-stone-300">
                         {plc}
                       </span>
                     ))}
@@ -321,22 +294,38 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                 )}
               </div>
 
+              {/* Logos Gallery */}
+              {logoList.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles size={12} className="text-amber-400" /> Logos Digitalizados ({logoList.length})
+                  </span>
+                  <div className="flex flex-wrap gap-2.5">
+                    {logoList.map((url, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveLightboxImage(url)}
+                        title="Click para ampliar"
+                        className="group relative w-16 h-16 rounded-xl border border-stone-800 bg-stone-900/90 overflow-hidden hover:border-amber-500/80 transition p-1.5 cursor-pointer shadow-sm hover:scale-105"
+                      >
+                        <img src={url} alt={`Logo ${idx + 1}`} className="w-full h-full object-contain pointer-events-none" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
                 <div className="bg-stone-900/90 border border-stone-800/80 rounded-xl p-3">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                    Colores de Hilo
-                  </span>
-                  <p className="text-xs text-stone-300 font-mono mt-1">
-                    {account.threadColors || 'No especificados'}
-                  </p>
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Colores de Hilo</span>
+                  <p className="text-xs text-stone-300 font-mono mt-1">{account.threadColors || 'No especificados'}</p>
                 </div>
 
                 <div className="bg-stone-900/90 border border-stone-800/80 rounded-xl p-3">
-                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">
-                    Ruta / Archivo de Logo
-                  </span>
+                  <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider">Ruta / Archivo de Logo</span>
                   <p className="text-xs font-mono text-stone-400 mt-1 truncate" title={account.logoFileLocation}>
-                    {account.logoFileLocation || 'No registrada'}
+                    {account.logoFileLocation || (logoList.length > 0 ? 'Digitalizado en sistema' : 'No registrada')}
                   </p>
                 </div>
               </div>
@@ -351,11 +340,8 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
               type="button"
               disabled={isProtected || isDeleting}
               onClick={() => {
-                if (onRequestDelete) {
-                  onRequestDelete(account);
-                } else {
-                  setShowConfirmDelete(true);
-                }
+                if (onRequestDelete) onRequestDelete(account);
+                else setShowConfirmDelete(true);
               }}
               title={isProtected ? 'Cuenta de sistema protegida contra eliminación' : 'Eliminar cuenta'}
               className="px-3.5 py-2 text-red-400 hover:bg-red-950/40 border border-red-900/40 rounded-xl text-xs font-bold uppercase tracking-wider transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
@@ -397,6 +383,32 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
         </div>
       </div>
 
+      {/* Lightbox Zoom Modal */}
+      {activeLightboxImage && (
+        <div
+          className="fixed inset-0 bg-stone-950/90 backdrop-blur-md flex items-center justify-center z-[120] p-4 cursor-zoom-out animate-in fade-in"
+          onClick={() => setActiveLightboxImage(null)}
+        >
+          <div
+            className="relative max-w-xl max-h-[80vh] p-4 bg-stone-900 border border-stone-800 rounded-3xl shadow-2xl flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setActiveLightboxImage(null)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-stone-800 text-stone-300 hover:text-white flex items-center justify-center border border-stone-700 shadow-md cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+            <img
+              src={activeLightboxImage}
+              alt="Logo ampliado"
+              className="max-h-[70vh] w-auto max-w-full object-contain rounded-xl mt-4"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Inline Confirmation Modal for Account Deletion */}
       {showConfirmDelete && (
         <div className="fixed inset-0 bg-stone-950/85 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
@@ -405,13 +417,10 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
               <div className="w-10 h-10 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center">
                 <AlertCircle size={20} />
               </div>
-              <h3 className="text-lg font-black text-stone-100 uppercase tracking-tight">
-                Eliminar Cuenta Cliente
-              </h3>
+              <h3 className="text-lg font-black text-stone-100 uppercase tracking-tight">Eliminar Cuenta Cliente</h3>
             </div>
             <p className="text-stone-300 text-xs leading-relaxed">
-              ¿Estás seguro que deseas eliminar la cuenta{' '}
-              <strong className="text-white">{account.accountName} ({account.accountId})</strong>?
+              ¿Estás seguro que deseas eliminar la cuenta <strong className="text-white">{account.accountName} ({account.accountId})</strong>?
               Esta acción eliminará el registro de la base de datos y desvinculará sus sucursales asociadas.
             </p>
             <div className="flex justify-end gap-3 pt-2">
@@ -434,7 +443,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                       const targetDocId = account.id || account.accountId;
                       if (targetDocId) {
                         await deleteDoc(doc(db, 'clientAccounts', targetDocId));
-                        const childAccounts = clientAccounts.filter((a: any) => a.parentAccountId === account.accountId);
+                        const childAccounts = clientAccounts.filter((a: ClientAccount) => a.parentAccountId === account.accountId);
                         for (const child of childAccounts) {
                           const childDocId = child.id || child.accountId;
                           if (childDocId) {
@@ -445,8 +454,9 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
                     }
                     setShowConfirmDelete(false);
                     onClose();
-                  } catch (err: any) {
-                    alert('Error al eliminar cuenta: ' + (err.message || 'Error desconocido'));
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : 'Error desconocido';
+                    console.error('Error al eliminar cuenta:', message);
                   } finally {
                     setIsDeleting(false);
                   }

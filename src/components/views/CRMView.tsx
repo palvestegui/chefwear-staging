@@ -121,6 +121,7 @@ export const CRMView: React.FC<CRMViewProps> = ({
     logoEmbroidery: true,
     logoPlacements: [''] as string[],
     logoFileLocation: '',
+    logoUrls: [] as string[],
     pricingTier: 'Estándar Raleo'
   });
 
@@ -190,6 +191,7 @@ export const CRMView: React.FC<CRMViewProps> = ({
                 logoEmbroidery: true,
                 logoPlacements: [''],
                 logoFileLocation: '',
+                logoUrls: [],
                 pricingTier: 'Estándar Raleo'
               });
               setShowNewAccountModal(true);

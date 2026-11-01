@@ -17,6 +17,8 @@ export interface ClientAccount {
   logoEmbroidery?: boolean;
   logoPlacements?: string[];
   logoFileLocation?: string;
+  logoUrl?: string;
+  logoUrls?: string[];
   threadColors?: string;
   pricingTier?: string;
   createdAt?: number | string;
