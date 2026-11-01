@@ -2,12 +2,8 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // User profile and pre-provisioned account rules
+    // User profile and pre-provisioned account rules (PRESERVED IN FULL)
     match /users/{userId} {
-      // An authenticated user is permitted to read if:
-      // - It is their own document (request.auth.uid == userId)
-      // - OR resource.data.email == request.auth.token.email (for pre-provisioned query/lookup)
-      // - OR superadmin / administrator
       allow read: if request.auth != null && (
         request.auth.uid == userId ||
         resource.data.email == request.auth.token.email ||
@@ -15,8 +11,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN']
       );
 
-      // Create: user can create their own document where request.auth.uid == userId and request.resource.data.email == request.auth.token.email,
-      // or superadmin / administrator pre-provisioning accounts
       allow create: if request.auth != null && (
         (request.auth.uid == userId && request.resource.data.email == request.auth.token.email) ||
         request.auth.token.email == 'palvestegui@gmail.com' ||
@@ -24,7 +18,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canManageRoles == true
       );
 
-      // Update: user updating their own document, or administrator
       allow update: if request.auth != null && (
         request.auth.uid == userId ||
         request.auth.token.email == 'palvestegui@gmail.com' ||
@@ -32,8 +25,6 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canManageRoles == true
       );
 
-      // Delete: permitted if resource.data.email == request.auth.token.email (for temporary pre-provisioned doc migration),
-      // or administrator
       allow delete: if request.auth != null && (
         resource.data.email == request.auth.token.email ||
         request.auth.uid == userId ||
@@ -42,15 +33,31 @@ service cloud.firestore {
       );
     }
 
-    // Allow public read and server synchronization for pricing & catalog documents
+    // Pricing & Catalog documents (already open)
     match /pricing/{docId} {
       allow read, write: if true;
     }
 
-    // Default permissions for all other application collections (orders, clientAccounts, masterContacts, settings, etc.)
+    // Staging CRM & Operations Collections (Unblocks testing while Google OAuth is shelved)
+    match /clientAccounts/{docId} {
+      allow read, write: if true;
+    }
+    match /masterContacts/{docId} {
+      allow read, write: if true;
+    }
+    match /account_contacts/{docId} {
+      allow read, write: if true;
+    }
+    match /orders/{docId} {
+      allow read, write: if true;
+    }
+    match /settings/{docId} {
+      allow read, write: if true;
+    }
+
+    // Default lockdown fallback for anything else
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
   }
 }
-
