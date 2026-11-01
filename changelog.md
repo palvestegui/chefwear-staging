@@ -1,4 +1,41 @@
 ## [Unreleased]
+### Account Profile Editing Unlock, 2-Column Contact Modals & 2-Step Confirmation Barriers (`AccountProfileModal.tsx`, `ClientAccountsTable.tsx`, `EditAccountModal.tsx`, `NewAccountModal.tsx`, `NewContactModal.tsx`, `EditContactModal.tsx`, `Tailoring12PointsGrid.tsx`, `AccountBrandingSection.tsx`)
+- **Restored Account Profile Editing & Protective Confirmation**:
+  - Removed `!isProtected` restriction from `AccountProfileModal.tsx` edit buttons (both header and footer). `isProtected` now strictly protects against account deletion (`isProtected || isDeleting` in `Eliminar Cuenta`), never editing.
+  - In `ClientAccountsTable.tsx`, added an active `[ ✏️ Editar ]` button in every row of the `ACCIONES` column, delegating to `onOpenEdit(account)` so protected accounts such as `ACC-001` (and `ACC-000`) can be seamlessly edited.
+  - In `EditAccountModal.tsx`, implemented a 2-Step In-App Confirmation Barrier before saving:
+    * Clicking `[ Guardar Cambios ]` validates inputs and triggers an in-app confirmation modal (`¿Confirmar cambios en la cuenta?`) summarizing account name and ID.
+    * Confirmation applies mutations (`setDoc(..., { merge: true })`), shows an affirmative toast, and closes modals.
+- **Auto-Compressing Multi-Image Logo Uploader & Branding Modularization (`AccountBrandingSection.tsx`, `imageCompression.ts`)**:
+  - Extracted `AccountBrandingSection.tsx` (< 300 lines) with client-side canvas auto-compression (`compressImage`), 64x64 preview gallery, hover delete (`✕`), and quick placement pills (`+ Gorro`, `+ Mandil`, etc.).
+  - Replaced legacy text inputs with modern multi-image support across both `NewAccountModal.tsx` and `EditAccountModal.tsx`.
+- **Redesigned `NewContactModal.tsx` and `EditContactModal.tsx` into Balanced 2-Column Workspace**:
+  - Clamped geometry to `w-[94vw] max-w-5xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 sm:p-8 bg-stone-900 border border-stone-800 shadow-2xl`.
+  - **Left Column (Identidad & Vinculación)**: Contact ID badge (`CON-XXX`), Linked Account selector, compact 2-column `Nombre *` & `Apellido *`, dynamic `Rol / Cargo` filtered by account type, `Teléfono / WhatsApp` & `Correo Electrónico`, and Notes/Observaciones.
+  - **Right Column (Matriz de Sastrería - 12 Puntos Anatómicos)**:
+    * Extracted `src/components/crm/Tailoring12PointsGrid.tsx` (183 lines, Rule 300 compliant).
+    * Subgroup A (Filipina - 8 Puntos) & Subgroup B (Pantalón - 4 Puntos) in high-density 4-column micro-tile inputs with `cm` suffix and disabled mouse-wheel scroll mutation (`onWheel={(e) => (e.target as HTMLElement).blur()}`).
+    * Smart Waist Pairing toggle indicator (`[ 🔗 Cintura Sincronizada ]` / `[ ⚠️ Cintura Desvinculada ]`) enabling automatic sync between filipina waist and pant waist.
+- **Edit Contact Confirmation Barrier (`EditContactModal.tsx`)**:
+  - Implemented 2-step in-app confirmation barrier modal:
+    * Title: `¿Confirmar cambios en el contacto?`
+    * Body: `Se actualizarán las medidas anatómicas y datos de [Nombre Completo] (ID: [CON-XXX]).`
+    * Confirmation writes to `masterContacts`, syncs `account_contacts`, and cascades measurements to active production orders.
+- **Action Footer in `NewContactModal.tsx`**:
+  - Left: `[ Cancelar ]`.
+  - Right: `[ Guardar y Añadir Otro ]` (secondary emerald) + `[ Guardar Contacto ]` (primary amber).
+- **Rule 300 / Rule 500 & Strict Type Safety Audit**:
+  - `src/utils/imageCompression.ts`: 108 lines (< 300 lines, Rule 300).
+  - `src/components/crm/Tailoring12PointsGrid.tsx`: 183 lines (< 300 lines, Rule 300).
+  - `src/components/crm/AccountBrandingSection.tsx`: 238 lines (< 500 lines, Rule 500).
+  - `src/components/views/crm/ClientAccountsTable.tsx`: 104 lines (< 500 lines, Rule 500).
+  - `src/components/modals/EditAccountModal.tsx`: 441 lines (< 500 lines, Rule 500).
+  - `src/components/modals/NewAccountModal.tsx`: 466 lines (< 500 lines, Rule 500).
+  - `src/components/modals/AccountProfileModal.tsx`: 474 lines (< 500 lines, Rule 500).
+  - `src/components/modals/NewContactModal.tsx`: 412 lines (< 500 lines, Rule 500).
+  - `src/components/modals/EditContactModal.tsx`: 453 lines (< 500 lines, Rule 500).
+  - Strict TypeScript: Zero `any`, zero `@ts-ignore`. Verified with `compile_applet` and `lint_applet` (`tsc --noEmit`).
+
 ### Metadata Keys Validation Filtering & Curated Workshop Fabric Dropdown (`useSettingsMutations.ts`, `SpecialGarmentCard.tsx`, `BasePricingTab.tsx`, `specialGarmentUtils.ts`)
 - **Metadata Keys Validation Filter (`src/hooks/useSettingsMutations.ts`)**:
   - Defined explicit set of non-fabric metadata keys: `METADATA_KEYS = new Set(['sku', 'baseGarment', 'id', 'name', 'category', 'isPrimary', 'fabricSku'])`.

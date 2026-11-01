@@ -236,6 +236,10 @@ export const CRMView: React.FC<CRMViewProps> = ({
               clientSearch={clientSearch}
               onSelectAccount={(acc) => setViewingProfileAccount(acc)}
               setViewingAccountHistoryId={setViewingAccountHistoryId}
+              onOpenEdit={(acc) => {
+                setEditingAccount(acc);
+                setShowEditAccountModal(true);
+              }}
             />
           )}
           

@@ -1,19 +1,22 @@
 import React from 'react';
-import { Lock } from 'lucide-react';
+import { Lock, Pencil } from 'lucide-react';
 import { normalizePricingTier, isSystemAccount } from '../../../utils/constants';
+import { ClientAccount } from '../../../types/crm';
 
 export interface ClientAccountsTableProps {
-  clientAccounts: any[];
+  clientAccounts: ClientAccount[];
   clientSearch: string;
-  onSelectAccount: (account: any) => void;
+  onSelectAccount: (account: ClientAccount) => void;
   setViewingAccountHistoryId: (id: string | null) => void;
+  onOpenEdit?: (account: ClientAccount) => void;
 }
 
 export const ClientAccountsTable: React.FC<ClientAccountsTableProps> = ({
   clientAccounts,
   clientSearch,
   onSelectAccount,
-  setViewingAccountHistoryId
+  setViewingAccountHistoryId,
+  onOpenEdit
 }) => {
   const filteredAccounts = clientAccounts.filter(c => 
     (c.accountName || '').toLowerCase().includes(clientSearch.toLowerCase()) || 
@@ -63,7 +66,20 @@ export const ClientAccountsTable: React.FC<ClientAccountsTableProps> = ({
               <td className="py-2.5 px-4 text-xs font-black text-amber-500 uppercase whitespace-nowrap">{normalizePricingTier(c.pricingTier)}</td>
               <td className="py-2.5 px-4 whitespace-nowrap text-right">
                 <div className="flex justify-end gap-2 items-center">
+                  {onOpenEdit && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenEdit(c);
+                      }}
+                      className="bg-stone-800 hover:bg-stone-700 text-amber-400 border border-stone-700 px-2.5 py-1.5 rounded-lg font-black text-[9px] uppercase tracking-widest transition shadow-sm flex items-center gap-1 cursor-pointer"
+                    >
+                      <Pencil size={10} /> Editar
+                    </button>
+                  )}
                   <button 
+                    type="button"
                     onClick={(e) => { 
                       e.stopPropagation(); 
                       setViewingAccountHistoryId(c.accountId); 

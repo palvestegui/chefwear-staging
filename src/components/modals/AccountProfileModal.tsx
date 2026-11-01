@@ -111,7 +111,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {!isProtected && onOpenEdit && (
+            {onOpenEdit && (
               <button
                 type="button"
                 onClick={() => onOpenEdit(account)}
@@ -362,7 +362,7 @@ export const AccountProfileModal: React.FC<AccountProfileModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {!isProtected && onOpenEdit && (
+            {onOpenEdit && (
               <button
                 type="button"
                 onClick={() => onOpenEdit(account)}
