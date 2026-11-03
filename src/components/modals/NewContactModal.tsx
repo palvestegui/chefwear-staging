@@ -75,19 +75,52 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({
     return `${prefix}${(maxNum + 1).toString().padStart(3, '0')}`;
   }, [masterContacts]);
 
-  const selectedAcc = clientAccounts.find((a) => a.accountId === newContact.accountId);
-  const currentRoles = getRolesForAccountType(selectedAcc?.accountType);
-  const currentRole = normalizeRole(newContact.role, selectedAcc?.accountType);
+  // Ensure ACC-000 is always present in account options
+  const accountsOptions = useMemo(() => {
+    const hasAcc0 = clientAccounts.some((a) => a.accountId === 'ACC-000');
+    if (hasAcc0) return clientAccounts;
+    const canonicalAcc0: ClientAccount = {
+      id: 'ACC-000',
+      accountId: 'ACC-000',
+      accountName: 'Cliente Particular',
+      accountType: 'Particular / Individuo',
+      pricingTier: 'Estándar Raleo',
+      isProtected: true
+    };
+    return [canonicalAcc0, ...clientAccounts];
+  }, [clientAccounts]);
+
+  const targetAccountId = newContact.accountId || 'ACC-000';
+  const selectedAcc = accountsOptions.find((a) => a.accountId === targetAccountId);
+  const currentRoles = getRolesForAccountType(selectedAcc?.accountType || 'Particular / Individuo');
+  const currentRole = normalizeRole(newContact.role || 'PARTICULAR', selectedAcc?.accountType || 'Particular / Individuo');
+
+  const handleAccountChange = (accId: string) => {
+    const targetId = accId || 'ACC-000';
+    const acc = accountsOptions.find((a) => a.accountId === targetId);
+    const roles = getRolesForAccountType(acc?.accountType);
+    let nextRole = roles[0] || 'OTRO';
+    if (targetId === 'ACC-000') {
+      nextRole = 'PARTICULAR';
+    } else if (targetId === 'ACC-001' || (acc?.accountName && acc.accountName.toUpperCase().includes('UDI'))) {
+      nextRole = 'ESTUDIANTE';
+    }
+    setNewContact({
+      ...newContact,
+      accountId: targetId,
+      role: nextRole
+    });
+  };
 
   const handleCancel = () => {
     setErrorMessage('');
     setLocalSuccessMsg('');
     setIsPantalonWaistOverridden(false);
     setNewContact({
-      accountId: '',
+      accountId: 'ACC-000',
       contactNombre: '',
       contactApellido: '',
-      role: 'Estudiante',
+      role: 'PARTICULAR',
       phone: '',
       email: '',
       notes: '',
@@ -105,12 +138,11 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({
       return;
     }
 
-    if (!newContact.accountId || newContact.accountId === '') {
-      setErrorMessage('Por favor seleccione una Cuenta de Cliente para vincular este contacto.');
-      return;
+    const finalAccountId = newContact.accountId?.trim() || 'ACC-000';
+    let role = newContact.role?.trim();
+    if (!role) {
+      role = finalAccountId === 'ACC-000' ? 'PARTICULAR' : finalAccountId === 'ACC-001' ? 'ESTUDIANTE' : currentRoles[0] || 'Particular';
     }
-
-    const role = newContact.role?.trim() || currentRoles[0] || 'Particular';
 
     try {
       setIsSaving(true);
@@ -131,7 +163,7 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({
 
       const contactData: Record<string, unknown> = {
         contactId: currentContactId,
-        accountId: newContact.accountId,
+        accountId: finalAccountId,
         contactNombre: newContact.contactNombre.trim(),
         contactApellido: newContact.contactApellido.trim(),
         fullName: `${newContact.contactNombre.trim()} ${newContact.contactApellido.trim()}`,
@@ -252,23 +284,13 @@ export const NewContactModal: React.FC<NewContactModalProps> = ({
                   Cuenta Cliente Vinculada *
                 </label>
                 <select
-                  value={newContact.accountId}
-                  onChange={(e) => {
-                    const accId = e.target.value;
-                    const acc = clientAccounts.find((a) => a.accountId === accId);
-                    const roles = getRolesForAccountType(acc?.accountType);
-                    setNewContact({
-                      ...newContact,
-                      accountId: accId,
-                      role: roles[0] || 'OTRO'
-                    });
-                  }}
+                  value={newContact.accountId || 'ACC-000'}
+                  onChange={(e) => handleAccountChange(e.target.value)}
                   className="w-full bg-stone-950 border border-stone-800 p-2 rounded-xl focus:border-amber-500 outline-none text-xs font-bold text-stone-300 cursor-pointer"
                 >
-                  <option value="">-- Seleccionar Cuenta --</option>
-                  {clientAccounts.map((a) => (
+                  {accountsOptions.map((a) => (
                     <option key={a.accountId} value={a.accountId}>
-                      {a.accountName} ({a.accountId}) — [{normalizeAccountType(a.accountType)}]
+                      {a.accountId} — {a.accountName} [{normalizeAccountType(a.accountType)}]
                     </option>
                   ))}
                 </select>

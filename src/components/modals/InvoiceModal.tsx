@@ -42,6 +42,8 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
   const { getServiceUnitPrice } = usePricingEngine(pricing);
 
   const breakdown = getOrderBreakdown(viewingInvoice.items || [], viewingInvoice.pricingTier || viewingInvoice.category || viewingInvoice.clientType, viewingInvoice.paymentMethod, viewingInvoice.manualDiscount, viewingInvoice.clientType, viewingInvoice.accountId, viewingInvoice.migrationFlatDiscount || 0);
+  // Database Anchoring: If viewingInvoice.totalPrice is saved in Firestore, anchor to it; otherwise fallback to breakdown.total
+  const displayTotal = Number(viewingInvoice.totalPrice || breakdown.total);
 
 
   const isQuote = getDocType(viewingInvoice) === 'COTIZACION';
@@ -350,13 +352,13 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                ))}
                <div className="flex justify-between items-center text-stone-500" style={{ color: '#1c1917' }}>
                  <span className="text-sm font-black uppercase tracking-widest">Total General</span>
-                 <span className="font-mono text-2xl font-black"><span className="normal-case">Bs</span>{breakdown.total.toFixed(2)}</span>
+                 <span className="font-mono text-2xl font-black"><span className="normal-case">Bs</span>{displayTotal.toFixed(2)}</span>
                </div>
                {viewingInvoice.status === 'Estimado' ? (
                  <React.Fragment>
                    <div className="flex justify-between items-center text-amber-600" style={{ color: '#d97706' }}>
                      <span className="text-xs font-black uppercase tracking-widest">Abono Mínimo (50%)</span>
-                     <span className="font-bold text-base">Bs{viewingInvoice.paymentMethod === '100% Contado' ? breakdown.total.toFixed(2) : (breakdown.total * 0.5).toFixed(2)}</span>
+                     <span className="font-bold text-base">Bs{(viewingInvoice.paymentMethod === '100% Contado' ? displayTotal : displayTotal * 0.5).toFixed(2)}</span>
                    </div>
                    
                    {(() => {
@@ -371,7 +373,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                      );
                      const cashPct = breakdownCash.cashDiscountPct || 10;
                      const cashTotal = breakdownCash.total;
-                     const currentTotal = Number(viewingInvoice.totalPrice || breakdownCash.subtotal);
+                     const currentTotal = displayTotal;
                      const savings = Math.max(0, currentTotal - cashTotal);
 
                      if (cashPct > 0 && savings > 0.01 && (viewingInvoice.paymentMethod || '50/50 - Adelantado/Entrega') !== '100% Contado') {
@@ -395,7 +397,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({
                      <span className="font-bold text-base"><span className="normal-case">Bs</span>{Number(viewingInvoice.amountCollected || 0).toFixed(2)}</span>
                    </div>
                    {(() => {
-                     const total = breakdown.total;
+                     const total = displayTotal;
                      const collected = Number(viewingInvoice.amountCollected || 0);
                      const diff = total - collected;
 

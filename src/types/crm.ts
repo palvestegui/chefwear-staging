@@ -21,6 +21,7 @@ export interface ClientAccount {
   logoUrls?: string[];
   threadColors?: string;
   pricingTier?: string;
+  isProtected?: boolean;
   createdAt?: number | string;
   createdBy?: string;
 }

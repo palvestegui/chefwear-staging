@@ -179,7 +179,10 @@ export const computeDiscountEngine = (
   let effectiveManual = 0;
   if (rules.sellerDiscountEnabled) {
     const maxManual = Math.max(0, rules.maxSellerDiscountPercent || 0);
-    effectiveManual = Math.min(Math.max(0, Number(manualDiscount) || 0), maxManual);
+    const parsedManual = typeof manualDiscount === 'number' && !isNaN(manualDiscount)
+      ? manualDiscount
+      : (Number(manualDiscount) || 0);
+    effectiveManual = parsedManual > 0 ? Math.min(parsedManual, maxManual) : 0;
     manualDiscountAmt = cumulativeDiscountableAfterVolume * (effectiveManual / 100);
   }
 
@@ -210,7 +213,24 @@ export const computeDiscountEngine = (
   }
 
   const totalDiscountAmt = volumeDiscountAmt + packageDiscountAmt + cashDiscountAmt + manualDiscountAmt;
-  const total = Math.max(0, subtotal - totalDiscountAmt);
+  let total = Math.max(0, subtotal - totalDiscountAmt);
+
+  // MATHEMATICAL PARITY GUARD: Zero silent deductions.
+  // Any discount or deduction applied to total MUST produce an explicit descriptive row in lines.
+  const calculatedDiscountsSum = lines.reduce((acc, l) => acc + (Number(l.amount) || 0), 0);
+  const expectedTotal = Math.max(0, subtotal - calculatedDiscountsSum);
+  const discrepancy = Math.round((total - expectedTotal) * 100) / 100;
+
+  // If total is lower than subtotal - linesSum, inject an explicit reconciliation line
+  if (discrepancy < -0.01) {
+    lines.push({
+      label: 'Ajuste Comercial / Descuento Adicional',
+      amount: Math.abs(discrepancy)
+    });
+  }
+
+  // Ensure total returned strictly equals subtotal minus sum of all discount lines
+  total = Math.max(0, subtotal - lines.reduce((acc, l) => acc + (Number(l.amount) || 0), 0));
 
   const rawOverallVol = subtotal > 0 ? (volumeDiscountAmt / subtotal) * 100 : 0;
   const rawOverallCash = subtotal > 0 ? (cashDiscountAmt / subtotal) * 100 : 0;

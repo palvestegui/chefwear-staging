@@ -19,6 +19,8 @@ export const OrderReceiptDocument = ({
 
   const { getServiceUnitPrice } = usePricingEngine(pricing);
   const breakdown = getOrderBreakdown(order.items || [], order.pricingTier || order.category || order.clientType, order.paymentMethod, order.manualDiscount, order.clientType, order.accountId, order.migrationFlatDiscount || 0);
+  // Database Anchoring: If order.totalPrice is saved in Firestore, anchor to it; otherwise fallback to breakdown.total
+  const displayTotal = Number(order.totalPrice || breakdown.total);
 
 
   const isInstitutional = Boolean(
@@ -220,7 +222,7 @@ export const OrderReceiptDocument = ({
 
              <div className="flex justify-between items-center text-stone-900 mt-2 pt-4 border-t border-stone-200" style={{ color: '#1c1917', borderColor: '#e5e5e5' }}>
                <span className="text-sm font-black uppercase tracking-widest">Total General</span>
-               <span className="font-mono text-2xl font-black"><span className="normal-case">Bs</span>{breakdown.total.toFixed(2)}</span>
+               <span className="font-mono text-2xl font-black"><span className="normal-case">Bs</span>{displayTotal.toFixed(2)}</span>
              </div>
              
              {(!isQuote || (order.amountCollected || 0) > 0) && (
@@ -232,7 +234,7 @@ export const OrderReceiptDocument = ({
                  
                  <div className="flex justify-between items-center text-red-500 mt-2 border-t border-stone-200 pt-3" style={{ color: '#ef4444', borderColor: '#e5e5e5' }}>
                    <span className="text-xs font-black uppercase tracking-widest">Saldo Pendiente</span>
-                   <span className="font-bold"><span className="normal-case">Bs</span>{Math.max(0, breakdown.total - Number(order.amountCollected || 0)).toFixed(2)}</span>
+                   <span className="font-bold"><span className="normal-case">Bs</span>{Math.max(0, displayTotal - Number(order.amountCollected || 0)).toFixed(2)}</span>
                  </div>
                </>
              )}
@@ -245,7 +247,7 @@ export const OrderReceiptDocument = ({
                  </div>
                  <div className="flex justify-between items-center text-stone-900" style={{ color: '#1c1917' }}>
                    <span className="text-[10px] font-black uppercase tracking-widest">Mínimo para confirmar orden</span>
-                   <span className="font-bold text-base">Bs{order.paymentMethod === '100% Contado' ? breakdown.total.toFixed(2) : (breakdown.total * 0.5).toFixed(2)}</span>
+                   <span className="font-bold text-base">Bs{(order.paymentMethod === '100% Contado' ? displayTotal : displayTotal * 0.5).toFixed(2)}</span>
                  </div>
                  
                  {(() => {
@@ -260,7 +262,7 @@ export const OrderReceiptDocument = ({
                    );
                    const cashPct = breakdownCash.cashDiscountPct || 10;
                    const cashTotal = breakdownCash.total;
-                   const currentTotal = Number(order.totalPrice || breakdownCash.subtotal);
+                   const currentTotal = displayTotal;
                    const savings = Math.max(0, currentTotal - cashTotal);
                    if (cashPct > 0 && savings > 0.01 && (order.paymentMethod || '50/50 - Adelantado/Entrega') !== '100% Contado') {
                      return (

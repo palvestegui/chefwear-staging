@@ -61,9 +61,41 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
   const contactNombre = editingMasterContact.contactNombre || splitName[0] || '';
   const contactApellido = editingMasterContact.contactApellido || splitName.slice(1).join(' ') || '';
 
-  const selectedAcc = clientAccounts.find((a) => a.accountId === editingMasterContact.accountId);
-  const currentRoles = getRolesForAccountType(selectedAcc?.accountType);
-  const currentRole = normalizeRole(editingMasterContact.role, selectedAcc?.accountType);
+  const accountsOptions = React.useMemo(() => {
+    const hasAcc0 = clientAccounts.some((a) => a.accountId === 'ACC-000');
+    if (hasAcc0) return clientAccounts;
+    const canonicalAcc0: ClientAccount = {
+      id: 'ACC-000',
+      accountId: 'ACC-000',
+      accountName: 'Cliente Particular',
+      accountType: 'Particular / Individuo',
+      pricingTier: 'Estándar Raleo',
+      isProtected: true
+    };
+    return [canonicalAcc0, ...clientAccounts];
+  }, [clientAccounts]);
+
+  const targetAccountId = editingMasterContact.accountId || 'ACC-000';
+  const selectedAcc = accountsOptions.find((a) => a.accountId === targetAccountId);
+  const currentRoles = getRolesForAccountType(selectedAcc?.accountType || 'Particular / Individuo');
+  const currentRole = normalizeRole(editingMasterContact.role || 'PARTICULAR', selectedAcc?.accountType || 'Particular / Individuo');
+
+  const handleAccountChange = (accId: string) => {
+    const targetId = accId || 'ACC-000';
+    const acc = accountsOptions.find((a) => a.accountId === targetId);
+    const roles = getRolesForAccountType(acc?.accountType);
+    let nextRole = roles[0] || 'OTRO';
+    if (targetId === 'ACC-000') {
+      nextRole = 'PARTICULAR';
+    } else if (targetId === 'ACC-001' || (acc?.accountName && acc.accountName.toUpperCase().includes('UDI'))) {
+      nextRole = 'ESTUDIANTE';
+    }
+    setEditingMasterContact({
+      ...editingMasterContact,
+      accountId: targetId,
+      role: nextRole
+    });
+  };
 
   const currentSizing = (editingMasterContact.sizingMatrix ||
     editingMasterContact.sizingMatrix12PtCM ||
@@ -93,8 +125,11 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
       setIsSaving(true);
       setErrorMessage(null);
 
-      let finalRole = editingMasterContact.role || 'OTRO';
-      if (!currentRoles.includes(finalRole)) {
+      const finalAccountId = editingMasterContact.accountId?.trim() || 'ACC-000';
+      let finalRole = editingMasterContact.role?.trim();
+      if (!finalRole) {
+        finalRole = finalAccountId === 'ACC-000' ? 'PARTICULAR' : finalAccountId === 'ACC-001' ? 'ESTUDIANTE' : currentRoles[0] || 'OTRO';
+      } else if (!currentRoles.includes(finalRole)) {
         finalRole = normalizeRole(finalRole, selectedAcc?.accountType);
       }
       const actualRoleToSave = currentRoles.includes(finalRole) ? finalRole : (currentRoles[0] || 'OTRO');
@@ -108,7 +143,7 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
 
       const contactData: Record<string, unknown> = {
         contactId: editingMasterContact.contactId,
-        accountId: editingMasterContact.accountId || '',
+        accountId: finalAccountId,
         contactNombre: contactNombre.trim(),
         contactApellido: contactApellido.trim(),
         fullName,
@@ -237,23 +272,13 @@ export const EditContactModal: React.FC<EditContactModalProps> = ({
                     Cuenta Cliente Vinculada
                   </label>
                   <select
-                    value={editingMasterContact.accountId || ''}
-                    onChange={(e) => {
-                      const accId = e.target.value;
-                      const acc = clientAccounts.find((a) => a.accountId === accId);
-                      const roles = getRolesForAccountType(acc?.accountType);
-                      setEditingMasterContact({
-                        ...editingMasterContact,
-                        accountId: accId,
-                        role: roles[0] || 'OTRO'
-                      });
-                    }}
+                    value={editingMasterContact.accountId || 'ACC-000'}
+                    onChange={(e) => handleAccountChange(e.target.value)}
                     className="w-full bg-stone-950 border border-stone-800 p-2 rounded-xl focus:border-amber-500 outline-none text-xs font-bold text-stone-300 cursor-pointer"
                   >
-                    <option value="">NINGUNA (Null)</option>
-                    {clientAccounts.map((a) => (
+                    {accountsOptions.map((a) => (
                       <option key={a.accountId} value={a.accountId}>
-                        {a.accountName} ({a.accountId}) — [{normalizeAccountType(a.accountType)}]
+                        {a.accountId} — {a.accountName} [{normalizeAccountType(a.accountType)}]
                       </option>
                     ))}
                   </select>

@@ -45,6 +45,36 @@ interface StagingUserEntity {
 let seedingAttempted = false;
 
 /**
+ * Ensures canonical ACC-000 (Cliente Particular) exists in clientAccounts.
+ * If not found, writes the canonical system document.
+ */
+export async function ensureCanonicalParticularAccount(db: Firestore): Promise<void> {
+  if (!db) return;
+  try {
+    const acc0DocRef = doc(db, 'clientAccounts', 'ACC-000');
+    const acc0Snap = await getDoc(acc0DocRef);
+
+    if (!acc0Snap.exists() || !acc0Snap.data()?.accountId) {
+      const canonicalAcc0 = {
+        id: 'ACC-000',
+        accountId: 'ACC-000',
+        accountName: 'Cliente Particular',
+        accountType: 'Particular / Individuo',
+        pricingTier: 'Estándar Raleo',
+        logoEmbroidery: false,
+        isProtected: true,
+        createdAt: Date.now()
+      };
+      await setDoc(acc0DocRef, canonicalAcc0, { merge: true });
+      await setDoc(doc(db, 'accounts', 'ACC-000'), canonicalAcc0, { merge: true });
+      console.log('[StagingSeeder] Canonical ACC-000 (Cliente Particular) guaranteed.');
+    }
+  } catch (err: unknown) {
+    console.warn('[StagingSeeder] Error ensuring canonical ACC-000:', err);
+  }
+}
+
+/**
  * Lightweight seeder that executes once on startup in Staging.
  * Ensures baseline accounts (ACC-000, ACC-001), superadmin user, and default pricing exist.
  */
@@ -53,6 +83,9 @@ export async function initStagingSeed(db: Firestore): Promise<void> {
   seedingAttempted = true;
 
   try {
+    // 0. Ensure canonical ACC-000 always exists in clientAccounts
+    await ensureCanonicalParticularAccount(db);
+
     const timestamp = new Date().toISOString();
 
     // 1. Seed accounts if empty

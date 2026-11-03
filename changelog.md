@@ -1,4 +1,60 @@
 ## [Unreleased]
+### Pricing Reconciliation, Invariance & Database Anchoring (`pricingCalculator.ts`, `OrderReceiptDocument.tsx`, `InvoiceModal.tsx`)
+- **Mathematical Parity Guard & Zero Silent Deductions (`pricingCalculator.ts`)**:
+  - Hardened `manualDiscountAmt` parsing: when `manualDiscount` is `undefined`, `null`, `NaN`, negative, or non-numeric, it strictly defaults to `0` and never falls back to `maxSellerDiscountPercent`.
+  - Enforced mathematical parity guard in `computeDiscountEngine`:
+    * Sums all explicit discount items in `lines` (`calculatedDiscountsSum`).
+    * Computes `expectedTotal = Math.max(0, subtotal - calculatedDiscountsSum)`.
+    * If `discrepancy = Math.round((total - expectedTotal) * 100) / 100` detects any silent reduction (`< -0.01`), automatically injects an explicit reconciliation row: `{ label: 'Ajuste Comercial / Descuento Adicional', amount: Math.abs(discrepancy) }`.
+    * Reconciles `total` to strictly equal `Math.max(0, subtotal - lines.reduce((acc, l) => acc + (Number(l.amount) || 0), 0))`, eliminating mathematical drift down to the cent.
+- **Database Anchoring in `OrderReceiptDocument.tsx`**:
+  - Anchored `displayTotal = Number(order.totalPrice || breakdown.total)` to the Firestore database truth, preventing committed order receipts from drifting during dynamic re-renders.
+  - Rendered `displayTotal.toFixed(2)` for `Total General`.
+  - Updated `Saldo Pendiente` to `Math.max(0, displayTotal - Number(order.amountCollected || 0))`.
+  - Updated `Mínimo para confirmar orden` to `(order.paymentMethod === '100% Contado' ? displayTotal : displayTotal * 0.5)`.
+  - Updated cash discount banner to set `currentTotal = displayTotal`, ensuring mathematical identity `displayTotal - savings === cashTotal`.
+- **Database Anchoring in `InvoiceModal.tsx`**:
+  - Anchored `displayTotal = Number(viewingInvoice.totalPrice || breakdown.total)` in invoice/receipt views.
+  - Rendered `displayTotal.toFixed(2)` for `Total General`.
+  - Updated `Abono Mínimo (50%)` to `(viewingInvoice.paymentMethod === '100% Contado' ? displayTotal : displayTotal * 0.5)`.
+  - Updated cash discount savings banner to evaluate against `currentTotal = displayTotal`.
+  - Updated balance calculation (`diff = total - collected`) to evaluate against `total = displayTotal`.
+- **Rule 300 / Rule 500 Compliance & Verification**:
+  - `src/utils/pricingCalculator.ts`: 258 lines (< 300 lines limit, Rule 300).
+  - `src/components/ui/OrderReceiptDocument.tsx`: 288 lines (< 500 lines limit, Rule 500).
+  - `src/components/modals/InvoiceModal.tsx`: 461 lines (< 500 lines limit, Rule 500).
+  - Strict TypeScript: Zero `any`, zero `@ts-ignore`. Verified with `tsc --noEmit` (0 errors) and `compile_applet`.
+
+### Canonical ACC-000 Auto-Seed, Default Contact Account Wiring & Robust ID Generation (`stagingSeeder.ts`, `NewContactModal.tsx`, `EditContactModal.tsx`, `NewAccountModal.tsx`, `CRMView.tsx`, `types/crm.ts`)
+- **Canonical ACC-000 (Cliente Particular) Auto-Seed (`stagingSeeder.ts`)**:
+  - Implemented `ensureCanonicalParticularAccount(db: Firestore)` in `src/utils/stagingSeeder.ts`:
+    * Checks if `clientAccounts/ACC-000` exists.
+    * If missing, performs a non-destructive creation of the canonical system account:
+      `{ id: 'ACC-000', accountId: 'ACC-000', accountName: 'Cliente Particular', accountType: 'Particular / Individuo', pricingTier: 'Estándar Raleo', logoEmbroidery: false, isProtected: true, createdAt: Date.now() }` across both `clientAccounts` and `accounts` collections.
+    * Integrated into `initStagingSeed(db)` to guarantee permanent availability of `ACC-000` on startup and during staging loads.
+- **Default Account Linking & Role Auto-Switching in Contact Modals (`NewContactModal.tsx`, `EditContactModal.tsx`)**:
+  - Added memoized `accountsOptions` ensuring `ACC-000 — Cliente Particular [Particular / Individuo]` is always listed at the top and selectable, even if not yet populated in the accounts list.
+  - Set default linked account to `'ACC-000'` when no account is passed or when creating a standalone retail contact.
+  - Implemented role auto-switching in `handleAccountChange`:
+    * Selecting `ACC-000` automatically switches the contact's role to `'PARTICULAR'`.
+    * Selecting `ACC-001` (Universidad UDI) automatically switches the role to `'ESTUDIANTE'`.
+    * Selecting any other corporate account defaults to standard corporate roles (e.g. `'CHEF'`, `'GERENTE'`).
+  - In `CRMView.tsx`, updated the standalone `[ + Nuevo Contacto ]` trigger to pass default `accountId: 'ACC-000'` and `role: 'PARTICULAR'`.
+- **Sequential Account ID Generation Safeguard (`NewAccountModal.tsx`)**:
+  - Refactored `generatedAccountId` calculation to safely compute max numerical suffix across all existing accounts:
+    `clientAccounts.reduce((max, a) => { const num = parseInt((a.accountId || '').replace('ACC-', ''), 10); return !isNaN(num) && num > max ? num : max; }, 0) + 1`.
+  - Ensures clean sequence (e.g. `ACC-001`, `ACC-002`, `ACC-003`) without collision or corruption when `ACC-000` is present.
+- **Strict Type Safety & Interface Update (`types/crm.ts`)**:
+  - Added optional `isProtected?: boolean` to the `ClientAccount` interface in `src/types/crm.ts` to properly type protected accounts (`ACC-000`, `ACC-001`) with zero `@ts-ignore` and zero `any`.
+- **Rule 300 / Rule 500 Compliance Audit**:
+  - `src/utils/stagingSeeder.ts`: 220 lines (< 300 lines limit, Rule 300).
+  - `src/types/crm.ts`: 48 lines (< 300 lines limit, Rule 300).
+  - `src/components/modals/NewAccountModal.tsx`: 461 lines (< 500 lines limit, Rule 500).
+  - `src/components/modals/NewContactModal.tsx`: 434 lines (< 500 lines limit, Rule 500).
+  - `src/components/modals/EditContactModal.tsx`: 478 lines (< 500 lines limit, Rule 500).
+  - `src/components/views/CRMView.tsx`: 491 lines (< 500 lines limit, Rule 500).
+  - All builds verified via `lint_applet` (`tsc --noEmit`) and `compile_applet`.
+
 ### Account Profile Editing Unlock, 2-Column Contact Modals & 2-Step Confirmation Barriers (`AccountProfileModal.tsx`, `ClientAccountsTable.tsx`, `EditAccountModal.tsx`, `NewAccountModal.tsx`, `NewContactModal.tsx`, `EditContactModal.tsx`, `Tailoring12PointsGrid.tsx`, `AccountBrandingSection.tsx`)
 - **Restored Account Profile Editing & Protective Confirmation**:
   - Removed `!isProtected` restriction from `AccountProfileModal.tsx` edit buttons (both header and footer). `isProtected` now strictly protects against account deletion (`isProtected || isDeleting` in `Eliminar Cuenta`), never editing.

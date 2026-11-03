@@ -54,16 +54,11 @@ export const NewAccountModal: React.FC<NewAccountModalProps> = ({
 
   // Compute next Account ID (ACC-XXX)
   const generatedAccountId = useMemo(() => {
-    const prefix = 'ACC-';
-    let maxNum = 0;
-    clientAccounts.forEach((acc) => {
-      if (acc.accountId && acc.accountId.startsWith(prefix)) {
-        const numStr = acc.accountId.replace(prefix, '');
-        const num = parseInt(numStr, 10);
-        if (!isNaN(num) && num > maxNum) maxNum = num;
-      }
-    });
-    return `${prefix}${(maxNum + 1).toString().padStart(3, '0')}`;
+    const maxNum = clientAccounts.reduce((max, a) => {
+      const num = parseInt((a.accountId || '').replace('ACC-', ''), 10);
+      return !isNaN(num) && num > max ? num : max;
+    }, 0);
+    return `ACC-${String(maxNum + 1).padStart(3, '0')}`;
   }, [clientAccounts]);
 
   const isIndividual = normalizeAccountType(newAccount.accountType) === 'Particular / Individuo';

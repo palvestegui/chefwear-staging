@@ -199,13 +199,11 @@ export const CRMView: React.FC<CRMViewProps> = ({
               <Plus size={14} /> Nueva Cuenta
             </button>
             <button onClick={() => {
-              const defaultAcc = clientAccounts[0]?.accountId || '';
-              const defaultRoles = getRolesForAccountType(clientAccounts[0]?.accountType);
               setNewContact({
-                accountId: defaultAcc,
+                accountId: 'ACC-000',
                 contactNombre: '',
                 contactApellido: '',
-                role: defaultRoles[0] || 'Estudiante',
+                role: 'PARTICULAR',
                 phone: '',
                 email: '',
                 measurements: {}
