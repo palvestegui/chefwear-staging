@@ -2,23 +2,29 @@ import React from 'react';
 import { requiredFields, fieldLabels } from '../../../utils/constants';
 import { Ruler, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { Order, OrderItem } from '../../../types';
+import { resolveGarmentBaseFamily, resolveGarmentSizingKey } from '../../../utils/garmentConfiguratorUtils';
 
 export interface GarmentSizingSectionProps {
-  newOrder: any;
-  currentItem: any;
-  setCurrentItem: React.Dispatch<React.SetStateAction<any>>;
+  newOrder: Order;
+  currentItem: OrderItem;
+  setCurrentItem: React.Dispatch<React.SetStateAction<OrderItem>>;
   setShowQuickSizeModal: (val: boolean) => void;
+  catalogCategory?: string;
 }
 
 export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
-  newOrder,
+  newOrder: _newOrder,
   currentItem,
   setCurrentItem,
   setShowQuickSizeModal,
+  catalogCategory,
 }) => {
   const { userProfile } = useAuth();
-  const isUdiMode = newOrder.accountId === 'ACC-001' || newOrder.category === 'UDI' || newOrder.clientType === 'Estudiante UDI';
-  const hasRequirements = (requiredFields[currentItem.name] && requiredFields[currentItem.name].length > 0) || currentItem.name === 'Uniforme Completo UDI';
+  const sizingKey = resolveGarmentSizingKey(currentItem.name, catalogCategory);
+  const measurementFields = requiredFields[sizingKey] || [];
+  const hasRequirements = measurementFields.length > 0 || currentItem.name === 'Uniforme Completo UDI';
+  const isFilipinaFamily = resolveGarmentBaseFamily(currentItem.name, catalogCategory) === 'Filipina';
   if (!hasRequirements) return null;
 
   return (
@@ -40,7 +46,7 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
           <div className="flex bg-stone-900 p-1 rounded-xl border border-stone-800">
             <button
               type="button"
-              onClick={() => setCurrentItem((p: any) => ({ ...p, nonUdiSizingType: 'standard', sizingMode: 'Standard Size', measurements: {} }))}
+              onClick={() => setCurrentItem((p) => ({ ...p, nonUdiSizingType: 'standard', sizingMode: 'Standard Size', measurements: {} }))}
               className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition ${
                 currentItem.nonUdiSizingType !== 'custom'
                   ? 'bg-amber-600 text-white shadow'
@@ -51,7 +57,7 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setCurrentItem((p: any) => ({ ...p, nonUdiSizingType: 'custom', sizingMode: 'Custom Tailored', size: '' }))}
+              onClick={() => setCurrentItem((p) => ({ ...p, nonUdiSizingType: 'custom', sizingMode: 'Custom Tailored', size: '' }))}
               className={`px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider transition ${
                 currentItem.nonUdiSizingType === 'custom'
                   ? 'bg-amber-600 text-white shadow'
@@ -65,7 +71,7 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
 
         {currentItem.nonUdiSizingType === 'custom' ? (
           <div className="space-y-3">
-            {userProfile?.role === 'VENTAS' && (currentItem.name || '').toLowerCase().includes('filipina') && (
+            {userProfile?.role === 'VENTAS' && isFilipinaFamily && (
               <div className="text-[10px] font-bold text-amber-400 bg-amber-950/40 border border-amber-800/60 px-3 py-1.5 rounded-xl flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
                   <ShieldAlert size={12} className="text-amber-400" />
@@ -90,8 +96,8 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
                         <input 
                           type="number" 
                           placeholder="0.0 cm" 
-                          value={currentItem.measurements[m] || ''} 
-                          onChange={e => setCurrentItem((p: any) => ({...p, measurements: {...p.measurements, [m]: e.target.value}}))} 
+                          value={currentItem.measurements?.[m] || ''} 
+                          onChange={e => setCurrentItem((p) => ({...p, measurements: {...(p.measurements || {}), [m]: e.target.value}}))} 
                           className="bg-stone-900 border border-stone-800 p-2.5 rounded-xl text-sm font-mono text-amber-500 placeholder:text-stone-700 outline-none focus:border-amber-500 w-full"
                         />
                       </div>
@@ -109,8 +115,8 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
                         <input 
                           type="number" 
                           placeholder="0.0 cm" 
-                          value={currentItem.measurements[m] || ''} 
-                          onChange={e => setCurrentItem((p: any) => ({...p, measurements: {...p.measurements, [m]: e.target.value}}))} 
+                          value={currentItem.measurements?.[m] || ''} 
+                          onChange={e => setCurrentItem((p) => ({...p, measurements: {...(p.measurements || {}), [m]: e.target.value}}))} 
                           className="bg-stone-900 border border-stone-800 p-2.5 rounded-xl text-sm font-mono text-amber-500 placeholder:text-stone-700 outline-none focus:border-amber-500 w-full"
                         />
                       </div>
@@ -120,7 +126,7 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                {(requiredFields[currentItem.name] || []).map((m: string) => (
+                {measurementFields.map((m: string) => (
                   <div key={m} className="flex flex-col gap-1 text-left">
                     <span className="text-[11px] font-bold uppercase tracking-wider text-stone-300 ml-1">
                       {fieldLabels[m] || m}
@@ -128,8 +134,8 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
                     <input 
                       type="number" 
                       placeholder="0.0 cm" 
-                      value={currentItem.measurements[m] || ''} 
-                      onChange={e => setCurrentItem((p: any) => ({...p, measurements: {...p.measurements, [m]: e.target.value}}))} 
+                      value={currentItem.measurements?.[m] || ''} 
+                      onChange={e => setCurrentItem((p) => ({...p, measurements: {...(p.measurements || {}), [m]: e.target.value}}))} 
                       className="bg-stone-900 border border-stone-800 p-2.5 rounded-xl text-sm font-mono text-amber-500 placeholder:text-stone-700 outline-none focus:border-amber-500 w-full"
                     />
                   </div>
@@ -143,7 +149,7 @@ export const GarmentSizingSection: React.FC<GarmentSizingSectionProps> = ({
               <button
                 key={s}
                 type="button"
-                onClick={() => setCurrentItem((p: any) => ({ ...p, size: s, sizingMode: 'Standard Size' }))}
+                onClick={() => setCurrentItem((p) => ({ ...p, size: s, sizingMode: 'Standard Size' }))}
                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition border ${
                   currentItem.size === s
                     ? 'bg-amber-600 text-white border-amber-500 shadow'

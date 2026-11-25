@@ -13,6 +13,7 @@ export interface GenericCatalogGarment {
   id?: string;
   name?: string;
   sku?: string;
+  category?: string;
   defaultFabric?: string;
   defaultFabricName?: string;
   priceRaleo?: number;

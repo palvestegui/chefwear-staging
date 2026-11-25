@@ -92,6 +92,7 @@ export interface OrderItem {
   isUdiGroup?: boolean;
   category?: string;
   sizingMode?: string;
+  nonUdiSizingType?: 'standard' | 'custom';
   wearerContactId?: string;
   contactId?: string;
   udiGroupId?: string;
@@ -105,6 +106,7 @@ export interface OrderItem {
   servicesPrice?: number;
   embroideries?: string[];
   customEmbroidery?: string;
+  customEmbroideryPrice?: number;
   pricingTier?: string;
   specialPreset?: string;
   customUnitPrice?: number;
