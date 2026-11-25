@@ -7,7 +7,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
-import { adminDb } from "./src/server/adminDb";
+import { adminDb, isAdminDbAvailable } from "./src/server/adminDb";
 import {
   isAuthorizedPulseRequest,
   isAuthorizedSyncRequest,
@@ -44,38 +44,53 @@ async function startServer() {
     next();
   });
 
+  const writePricingGlobal = async (payload: Record<string, unknown>): Promise<"admin" | "client"> => {
+    if (isAdminDbAvailable) {
+      try {
+        await adminDb.collection("pricing").doc("global").set(payload, { merge: true });
+        return "admin";
+      } catch (adminErr: unknown) {
+        console.warn("[Sync] adminDb error, falling back to client Firestore SDK:", adminErr instanceof Error ? adminErr.message : String(adminErr));
+      }
+    }
+    await setDoc(doc(db, "pricing", "global"), payload, { merge: true });
+    return "client";
+  };
+
   // Direct pricing sync ingestion endpoint (supports aliases: /api/pricing/sync, /api/sync-to-ventas, /api/sync-pricing, /sync)
   const handleCatalogSync = async (req: Request, res: Response) => {
     if (!isAuthorizedSyncRequest(req)) {
       return res.status(401).json({ success: false, error: "Unauthorized: invalid or missing SYNC_API_KEY" });
     }
     try {
-      const payload = {
-        garments: (req.body?.garments && typeof req.body.garments === "object" && !Array.isArray(req.body.garments)
-          ? req.body.garments
-          : {}) as Record<string, unknown>,
-        catalogGarments: normalizeCatalogGarmentsMap(req.body?.catalogGarments),
+      const payload: Record<string, unknown> = {
         lastSyncedAt: typeof req.body?.lastSyncedAt === "number" ? req.body.lastSyncedAt : Date.now(),
         updatedAt: typeof req.body?.updatedAt === "string" && req.body.updatedAt.trim()
           ? req.body.updatedAt
           : new Date().toISOString()
       };
-
-      // Write with { merge: true }
-      // Zero Data Loss: NEVER overwrite or drop pricing.services, pricing.specialPresets, or discountRulesByTier
-      try {
-        await adminDb.collection('pricing').doc('global').set(payload, { merge: true });
-      } catch (adminErr: unknown) {
-        // Fallback to client Firestore SDK authorized by firestore.rules for /pricing/{docId}
-        console.warn("[Sync] adminDb error, falling back to client Firestore SDK:", adminErr instanceof Error ? adminErr.message : String(adminErr));
-        await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
+      let syncedGarmentsCount = 0;
+      if (req.body?.garments && typeof req.body.garments === "object" && !Array.isArray(req.body.garments)) {
+        const garmentsObj = req.body.garments as Record<string, unknown>;
+        payload.garments = garmentsObj;
+        syncedGarmentsCount = Object.keys(garmentsObj).length;
       }
+      let syncedCatalogCount = 0;
+      if (req.body?.catalogGarments !== undefined) {
+        const normalizedCatalog = normalizeCatalogGarmentsMap(req.body.catalogGarments);
+        payload.catalogGarments = normalizedCatalog;
+        syncedCatalogCount = Object.keys(normalizedCatalog).length;
+      }
+
+      // Write with { merge: true } — Zero Data Loss: never overwrite or drop services, specialPresets, or discountRulesByTier
+      const syncedVia = await writePricingGlobal(payload);
 
       return res.json({
         success: true,
-        syncedGarmentsCount: Object.keys(payload.garments).length,
-        syncedCatalogCount: Object.keys(payload.catalogGarments).length,
-        message: 'Ventas Staging pricing/global successfully updated'
+        syncedVia,
+        syncedGarmentsCount,
+        syncedCatalogCount,
+        message: "Ventas Staging pricing/global successfully updated"
       });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -222,7 +237,7 @@ async function startServer() {
             updatePayload.catalogGarments = normalizeCatalogGarmentsMap(args.catalogGarments);
           }
 
-          await adminDb.collection('pricing').doc('global').set(updatePayload, { merge: true });
+          await writePricingGlobal(updatePayload);
 
           toolResult = {
             success: true,
