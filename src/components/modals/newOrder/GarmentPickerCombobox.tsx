@@ -87,7 +87,9 @@ export const GarmentPickerCombobox: React.FC<GarmentPickerComboboxProps> = ({
     { key: 'filipinas', label: 'Filipinas', count: catalog.pills.filipinas.length },
     { key: 'mandiles', label: 'Mandiles', count: catalog.pills.mandiles.length },
     { key: 'chamarras', label: 'Chamarras', count: catalog.pills.chamarras.length },
-    { key: 'otros', label: 'Pantalones & Otros', count: catalog.pills.otros.length },
+    { key: 'camisas', label: 'Camisas', count: catalog.pills.camisas.length },
+    { key: 'pantalones', label: 'Pantalones', count: catalog.pills.pantalones.length },
+    { key: 'gorros_otros', label: 'Gorros & Otros', count: catalog.pills.gorros_otros.length },
   ];
 
   const commitSelection = (item: GarmentComboboxItem) => {
@@ -250,6 +252,7 @@ export const GarmentPickerCombobox: React.FC<GarmentPickerComboboxProps> = ({
                   const isSelected = item.name === selectedGarment;
                   const isHighlighted = idx === highlightedIdx;
                   const badge = SOURCE_BADGES[item.source];
+                  const thumb = item.imageUrl || item.backImageUrl;
                   return (
                     <li
                       key={`${item.source}-${item.name}`}
@@ -269,13 +272,23 @@ export const GarmentPickerCombobox: React.FC<GarmentPickerComboboxProps> = ({
                             : 'text-stone-300 hover:bg-stone-900/70'
                       }`}
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-bold truncate">{item.name}</div>
-                        {(item.category || item.sku) && (
-                          <div className="text-[10px] font-mono text-stone-500 truncate">
-                            {[item.category, item.sku].filter(Boolean).join(' · ')}
-                          </div>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        {thumb && (
+                          <img
+                            src={thumb}
+                            alt=""
+                            loading="lazy"
+                            className="w-8 h-8 rounded-lg object-cover border border-stone-800 bg-stone-900 shrink-0"
+                          />
                         )}
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold truncate">{item.name}</div>
+                          {(item.category || item.sku) && (
+                            <div className="text-[10px] font-mono text-stone-500 truncate">
+                              {[item.category, item.sku].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border ${badge.cls}`}>

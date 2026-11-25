@@ -16,6 +16,11 @@ export interface GenericCatalogGarment {
   category?: string;
   defaultFabric?: string;
   defaultFabricName?: string;
+  imageUrl?: string;
+  frontImage?: string;
+  image?: string;
+  backImageUrl?: string;
+  backImage?: string;
   priceRaleo?: number;
   priceB2B?: number;
   variants?: GenericVariant[];

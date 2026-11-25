@@ -6,6 +6,7 @@ import { ClientAccount, MasterContact } from '../types/crm';
 import { runUdiFabricMigration } from '../utils/udiFabricMigration';
 import { runUdiReconciliationPatch } from '../utils/udiReconciliationPatch';
 import { initStagingSeed } from '../utils/stagingSeeder';
+import { CatalogMediaDoc, hydratePricingWithMediaDocs } from '../utils/catalogMediaUtils';
 
 let udiFabricAttempted = false;
 let udiReconciliationAttempted = false;
@@ -176,15 +177,19 @@ export const DataProvider: React.FC<{ children: React.ReactNode; db: Firestore }
 
       unsubs.push(
         onSnapshot(
-          doc(db, 'pricing', 'global'),
-          (docSnap) => {
-            if (docSnap.exists()) {
-              setPricing(docSnap.data() as PricingData);
-            } else {
+          collection(db, 'pricing'),
+          (snapshot) => {
+            const globalDoc = snapshot.docs.find((d) => d.id === 'global');
+            if (!globalDoc) {
               setPricing(null);
+              return;
             }
+            const mediaDocs: CatalogMediaDoc[] = snapshot.docs
+              .filter((d) => d.id.startsWith('media__'))
+              .map((d) => d.data() as CatalogMediaDoc);
+            setPricing(hydratePricingWithMediaDocs(globalDoc.data() as PricingData, mediaDocs));
           },
-          handleSnapshotError('pricing/global')
+          handleSnapshotError('pricing')
         )
       );
 

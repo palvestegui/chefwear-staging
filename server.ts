@@ -8,6 +8,7 @@ import { createServer as createViteServer } from "vite";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
 import { adminDb, isAdminDbAvailable } from "./src/server/adminDb";
+import { persistCatalogMediaDocs, splitCatalogMedia, CatalogMediaWriteItem } from "./src/server/catalogMediaSync";
 import {
   isAuthorizedPulseRequest,
   isAuthorizedSyncRequest,
@@ -76,20 +77,24 @@ async function startServer() {
         syncedGarmentsCount = Object.keys(garmentsObj).length;
       }
       let syncedCatalogCount = 0;
+      let mediaItems: CatalogMediaWriteItem[] = [];
       if (req.body?.catalogGarments !== undefined) {
         const normalizedCatalog = normalizeCatalogGarmentsMap(req.body.catalogGarments);
-        payload.catalogGarments = normalizedCatalog;
-        syncedCatalogCount = Object.keys(normalizedCatalog).length;
+        const split = splitCatalogMedia(normalizedCatalog, String(payload.updatedAt));
+        payload.catalogGarments = split.lightweightCatalog;
+        mediaItems = split.mediaItems;
+        syncedCatalogCount = Object.keys(split.lightweightCatalog).length;
       }
-
-      // Write with { merge: true } — Zero Data Loss: never overwrite or drop services, specialPresets, or discountRulesByTier
+      // Write with { merge: true } — preserve services, specialPresets, and discountRulesByTier
       const syncedVia = await writePricingGlobal(payload);
+      await persistCatalogMediaDocs(mediaItems, isAdminDbAvailable ? adminDb : null, db);
 
       return res.json({
         success: true,
         syncedVia,
         syncedGarmentsCount,
         syncedCatalogCount,
+        syncedMediaCount: mediaItems.length,
         message: "Ventas Staging pricing/global successfully updated"
       });
     } catch (err: unknown) {
@@ -104,20 +109,11 @@ async function startServer() {
   app.post("/api/sync-pricing", handleCatalogSync);
   app.post("/sync", handleCatalogSync);
 
-  // Health and ping on /mcp
-  app.get("/mcp", (_req: Request, res: Response) => {
-    res.json({ status: "ok", server: "azafran-ventas-staging", protocol: "mcp" });
-  });
-
-  // MCP JSON-RPC 2.0 Handler
+  app.get("/mcp", (_req: Request, res: Response) => res.json({ status: "ok", server: "azafran-ventas-staging", protocol: "mcp" }));
   app.post("/mcp", async (req: Request, res: Response) => {
     const { id, method, params } = req.body as JsonRpcRequest;
     if (!isAuthorizedPulseRequest(req)) {
-      return res.status(401).json({
-        jsonrpc: "2.0",
-        id: id ?? null,
-        error: { code: -32001, message: "Unauthorized: invalid or missing AZAFRAN_PULSE_KEY / SYNC_API_KEY" }
-      });
+      return res.status(401).json({ jsonrpc: "2.0", id: id ?? null, error: { code: -32001, message: "Unauthorized: invalid or missing AZAFRAN_PULSE_KEY / SYNC_API_KEY" } });
     }
 
     if (method === "initialize") {

@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, Maximize2 } from 'lucide-react';
 import { GarmentSizingSection } from './GarmentSizingSection';
 import { GarmentServicesSelector } from './GarmentServicesSelector';
 import { GarmentReferenceImages } from './GarmentReferenceImages';
 import { GarmentPickerCombobox } from './GarmentPickerCombobox';
+import { ClientGarmentLightbox } from '../../pricing/ClientGarmentLightbox';
+import { resolveGarmentMedia } from '../../../utils/catalogMediaUtils';
 import { findGarmentMetadata, getSortedFabricsForGarment } from '../../../domains/pricing/pricingResolver';
 import { extractValidFabricKeys } from '../../../domains/pricing/fabricAliasMap';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -73,6 +76,8 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
   );
   const activeCatalogCategory = resolveCatalogCategory(pricing, currentItem.name);
   const activeBaseFamily = resolveGarmentBaseFamily(currentItem.name, activeCatalogCategory);
+  const selectedMedia = resolveGarmentMedia(pricing, currentItem.name);
+  const [lightboxSide, setLightboxSide] = useState<'front' | 'back' | null>(null);
   const prevIsUdiRef = React.useRef(false);
 
   React.useEffect(() => {
@@ -298,6 +303,55 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
         }}
       />
 
+      {(selectedMedia.imageUrl || selectedMedia.backImageUrl) && (
+        <div className="bg-stone-900/70 border border-stone-800 rounded-2xl p-2.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            {selectedMedia.imageUrl && (
+              <button
+                type="button"
+                onClick={() => setLightboxSide('front')}
+                className="group relative w-12 h-14 rounded-xl overflow-hidden border border-stone-700 hover:border-amber-500 transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-amber-500"
+                title="Ampliar vista frente"
+              >
+                <img src={selectedMedia.imageUrl} alt={`${currentItem.name} frente`} className="w-full h-full object-cover" />
+                <span className="absolute inset-x-0 bottom-0 bg-stone-950/85 text-[8px] font-mono font-bold text-stone-200 text-center py-0.5">
+                  Frente
+                </span>
+              </button>
+            )}
+            {selectedMedia.backImageUrl && (
+              <button
+                type="button"
+                onClick={() => setLightboxSide('back')}
+                className="group relative w-12 h-14 rounded-xl overflow-hidden border border-stone-700 hover:border-amber-500 transition cursor-pointer shrink-0 focus-visible:outline-2 focus-visible:outline-amber-500"
+                title="Ampliar vista espalda"
+              >
+                <img src={selectedMedia.backImageUrl} alt={`${currentItem.name} espalda`} className="w-full h-full object-cover" />
+                <span className="absolute inset-x-0 bottom-0 bg-stone-950/85 text-[8px] font-mono font-bold text-stone-200 text-center py-0.5">
+                  Espalda
+                </span>
+              </button>
+            )}
+            <div className="min-w-0 pl-1">
+              <p className="text-[11px] font-black text-stone-200 truncate">{currentItem.name}</p>
+              <p className="text-[10px] font-mono text-stone-400 truncate">
+                {currentItem.fabric || 'Sin tela'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setLightboxSide(selectedMedia.imageUrl ? 'front' : 'back')}
+            className="min-h-[30px] px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-amber-500"
+          >
+            <Eye size={13} aria-hidden="true" />
+            <span>Mostrar al Cliente</span>
+            <Maximize2 size={11} aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {!isUdiMode && currentItem.name !== 'Uniforme Completo UDI' && (
         <input
           type="text"
@@ -349,6 +403,21 @@ export const GarmentConfigurator: React.FC<GarmentConfiguratorProps> = ({
           )
         </button>
       </div>
+
+      <ClientGarmentLightbox
+        isOpen={lightboxSide !== null}
+        onClose={() => setLightboxSide(null)}
+        modelName={currentItem.name}
+        category={activeCatalogCategory}
+        fabricName={currentItem.fabric}
+        priceLabel={`Bs ${calculateItemPriceRaw(
+          currentItem,
+          isUdiMode ? 'UDI Especial' : newOrder.pricingTier || newOrder.category || 'Personal'
+        ).toFixed(0)}`}
+        frontImageUrl={selectedMedia.imageUrl}
+        backImageUrl={selectedMedia.backImageUrl}
+        initialSide={lightboxSide || 'front'}
+      />
     </div>
   );
 };
