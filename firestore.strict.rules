@@ -28,12 +28,27 @@ rules_version = '2';
 //   - updatedAt: timestamp | number | string (optional)
 //
 // Collection: pricing
-// Document ID: {docId} (e.g., 'global')
-// Fields:
-//   - updatedAt: string (optional, <= 64)
-//   - catalogGarments: map (optional)
+// Document ID: {docId} (e.g., 'global', 'media__<slug>_<hash>')
+// Fields (pricing/global):
+//   - updatedAt: timestamp | number | string (optional, <= 64)
+//   - createdAt: timestamp | number | string (optional, <= 64)
+//   - catalogGarments: map | list (optional, <= 500 if list)
 //   - garments: map (optional)
-//   - lastSyncedAt: number (optional)
+//   - lastSyncedAt: number (optional, >= 0)
+//   - services: list (optional, <= 500)
+//   - specialPresets: map (optional)
+//   - specialPresetServices: map (optional)
+//   - specialPresetIncludedServices: map (optional)
+//   - specialPresetBundles: map (optional)
+//   - specialPresetDiscounts: map (optional)
+//   - discountRulesByTier: map (optional)
+//   - udiPricing: map (optional)
+// Fields (pricing/media__*):
+//   - garmentName: string (optional, <= 250)
+//   - sku: string (optional, <= 120)
+//   - imageUrl: string (optional, <= 900000)
+//   - backImageUrl: string (optional, <= 900000)
+//   - updatedAt: timestamp | number | string (optional, <= 64)
 //
 // Collection: clientAccounts
 // Document ID: {docId}
@@ -163,10 +178,24 @@ service cloud.firestore {
     }
 
     function isValidPricingWrite(data) {
-      return (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64)) &&
-        (!('catalogGarments' in data) || data.catalogGarments is map) &&
-        (!('garments' in data) || data.garments is map) &&
-        (!('lastSyncedAt' in data) || data.lastSyncedAt is number);
+      return data.keys().size() <= 40 &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        (!('catalogGarments' in data) || data.catalogGarments == null || data.catalogGarments is map || (data.catalogGarments is list && data.catalogGarments.size() <= 500)) &&
+        isValidOptionalMap(data, 'garments') &&
+        isValidOptionalNonNegNumber(data, 'lastSyncedAt') &&
+        isValidOptionalList(data, 'services', 500) &&
+        isValidOptionalMap(data, 'specialPresets') &&
+        isValidOptionalMap(data, 'specialPresetServices') &&
+        isValidOptionalMap(data, 'specialPresetIncludedServices') &&
+        isValidOptionalMap(data, 'specialPresetBundles') &&
+        isValidOptionalMap(data, 'specialPresetDiscounts') &&
+        isValidOptionalMap(data, 'discountRulesByTier') &&
+        isValidOptionalMap(data, 'udiPricing') &&
+        isValidOptionalString(data, 'garmentName', 250) &&
+        isValidOptionalString(data, 'sku', 120) &&
+        isValidOptionalString(data, 'imageUrl', 900000) &&
+        isValidOptionalString(data, 'backImageUrl', 900000);
     }
 
     function isValidClientAccountWrite(data) {
@@ -336,7 +365,7 @@ service cloud.firestore {
       );
     }
 
-    // Pricing & Catalog documents (authenticated read, admin-only write)
+    // Pricing, Catalog & Media documents ('global' and 'media__*': authenticated read, admin-only write)
     match /pricing/{docId} {
       allow read: if isAuthenticated();
       allow create, update: if isAdminCaller() && isValidPricingWrite(request.resource.data);

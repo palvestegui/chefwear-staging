@@ -1,7 +1,7 @@
 rules_version = '2';
 
 // ===============================================================
-// Assumed Data Model (Staging Mode with Guardrail)
+// Assumed Data Model (Production Strict Mode)
 // ===============================================================
 //
 // Collection: users
@@ -28,16 +28,62 @@ rules_version = '2';
 //   - updatedAt: timestamp | number | string (optional)
 //
 // Collection: pricing
-// Document ID: {docId} (e.g., 'global')
-// Fields:
-//   - updatedAt: string (optional, <= 64)
-//   - catalogGarments: map (optional)
+// Document ID: {docId} (e.g., 'global', 'media__<slug>_<hash>')
+// Fields (pricing/global):
+//   - updatedAt: timestamp | number | string (optional, <= 64)
+//   - createdAt: timestamp | number | string (optional, <= 64)
+//   - catalogGarments: map | list (optional, <= 500 if list)
 //   - garments: map (optional)
-//   - lastSyncedAt: number (optional)
+//   - lastSyncedAt: number (optional, >= 0)
+//   - services: list (optional, <= 500)
+//   - specialPresets: map (optional)
+//   - specialPresetServices: map (optional)
+//   - specialPresetIncludedServices: map (optional)
+//   - specialPresetBundles: map (optional)
+//   - specialPresetDiscounts: map (optional)
+//   - discountRulesByTier: map (optional)
+//   - udiPricing: map (optional)
+// Fields (pricing/media__*):
+//   - garmentName: string (optional, <= 250)
+//   - sku: string (optional, <= 120)
+//   - imageUrl: string (optional, <= 900000)
+//   - backImageUrl: string (optional, <= 900000)
+//   - updatedAt: timestamp | number | string (optional, <= 64)
 //
-// Staging CRM & Operations Collections (temporarily open for loginAsStagingAdmin):
-//   - clientAccounts, masterContacts, account_contacts, orders, settings
-//   - Swap to firestore.strict.rules before production deployment.
+// Collection: clientAccounts
+// Document ID: {docId}
+// Fields: accountId, accountType, accountName, parentAccountId, contactNombre,
+//   contactApellido, phone, email, socials, deliveryCity, deliveryAddress,
+//   deliveryNotes, logoEmbroidery, logoPlacements, logoFileLocation, logoUrl,
+//   logoUrls, threadColors, pricingTier, isProtected, createdAt, updatedAt, createdBy
+//
+// Collection: masterContacts
+// Document ID: {docId}
+// Fields: id, contactId, originalDocId, fullName, contactNombre, contactApellido,
+//   accountId, companyName, parentAccountId, parentAccountName, role, contactRole,
+//   phone, email, notes, socials, measurements, sizingMatrix, corporateAffiliation,
+//   activeOrdersCount, createdAt, updatedAt
+//
+// Collection: account_contacts
+// Document ID: {docId}
+// Fields: linkId, contactId, accountId, role, isPrimary, createdAt, updatedAt
+//
+// Collection: orders
+// Document ID: {docId}
+// Fields: id, docType, customer, customerFirstName, customerLastName, phone, email,
+//   city, address, items, category, pricingTier, clientType, contactRole, accountId,
+//   companyName, parentAccountName, paymentMethod, deliveryCity, logo, logos, refImages,
+//   manualDiscount, migrationFlatDiscount, notes, deliveryTime, status, productionStatus,
+//   linkMode, linkId, contactId, sellerName, sellerEmail, sellerUid, sellerRole,
+//   isInstitutional, institutionalRoster, totalPrice, subtotal, totalDiscount,
+//   amountCollected, reconciliationNote, paymentHistory, timestamps, createdAt, updatedAt
+//
+// Collection: settings
+// Document ID: {docId} (e.g., 'sizeTables')
+//
+// Collection: metadata
+// Document ID: {counterId} (e.g., 'quoteCounter', 'orderCounter', 'cancellationCounter', 'linkCounter')
+// Fields: currentSequence (number >= 0), updatedAt (string | timestamp | number)
 //
 // ===============================================================
 
@@ -74,6 +120,18 @@ service cloud.firestore {
 
     function isValidOptionalBool(data, field) {
       return !(field in data) || data[field] == null || data[field] is bool;
+    }
+
+    function isValidOptionalNonNegNumber(data, field) {
+      return !(field in data) || data[field] == null || (data[field] is number && data[field] >= 0);
+    }
+
+    function isValidOptionalList(data, field, maxSize) {
+      return !(field in data) || data[field] == null || (data[field] is list && data[field].size() <= maxSize);
+    }
+
+    function isValidOptionalMap(data, field) {
+      return !(field in data) || data[field] == null || data[field] is map;
     }
 
     function isValidOptionalFlexibleTimestamp(data, field) {
@@ -120,10 +178,137 @@ service cloud.firestore {
     }
 
     function isValidPricingWrite(data) {
-      return (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64)) &&
-        (!('catalogGarments' in data) || data.catalogGarments is map) &&
-        (!('garments' in data) || data.garments is map) &&
-        (!('lastSyncedAt' in data) || data.lastSyncedAt is number);
+      return data.keys().size() <= 40 &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        (!('catalogGarments' in data) || data.catalogGarments == null || data.catalogGarments is map || (data.catalogGarments is list && data.catalogGarments.size() <= 500)) &&
+        isValidOptionalMap(data, 'garments') &&
+        isValidOptionalNonNegNumber(data, 'lastSyncedAt') &&
+        isValidOptionalList(data, 'services', 500) &&
+        isValidOptionalMap(data, 'specialPresets') &&
+        isValidOptionalMap(data, 'specialPresetServices') &&
+        isValidOptionalMap(data, 'specialPresetIncludedServices') &&
+        isValidOptionalMap(data, 'specialPresetBundles') &&
+        isValidOptionalMap(data, 'specialPresetDiscounts') &&
+        isValidOptionalMap(data, 'discountRulesByTier') &&
+        isValidOptionalMap(data, 'udiPricing') &&
+        isValidOptionalString(data, 'garmentName', 250) &&
+        isValidOptionalString(data, 'sku', 120) &&
+        isValidOptionalString(data, 'imageUrl', 900000) &&
+        isValidOptionalString(data, 'backImageUrl', 900000);
+    }
+
+    function isValidClientAccountWrite(data) {
+      return data.keys().size() <= 50 &&
+        isValidOptionalString(data, 'id', 128) &&
+        isValidOptionalString(data, 'accountId', 128) &&
+        isValidOptionalString(data, 'accountType', 100) &&
+        isValidOptionalString(data, 'accountName', 250) &&
+        isValidOptionalString(data, 'parentAccountId', 128) &&
+        isValidOptionalString(data, 'contactNombre', 120) &&
+        isValidOptionalString(data, 'contactApellido', 120) &&
+        isValidOptionalString(data, 'phone', 60) &&
+        isValidOptionalString(data, 'email', 254) &&
+        isValidOptionalMap(data, 'socials') &&
+        isValidOptionalString(data, 'deliveryCity', 120) &&
+        isValidOptionalString(data, 'deliveryAddress', 500) &&
+        isValidOptionalString(data, 'deliveryNotes', 2000) &&
+        isValidOptionalBool(data, 'logoEmbroidery') &&
+        isValidOptionalList(data, 'logoPlacements', 50) &&
+        isValidOptionalString(data, 'logoFileLocation', 500) &&
+        isValidOptionalString(data, 'logoUrl', 300000) &&
+        isValidOptionalList(data, 'logoUrls', 20) &&
+        isValidOptionalString(data, 'threadColors', 500) &&
+        isValidOptionalString(data, 'pricingTier', 60) &&
+        isValidOptionalBool(data, 'isProtected') &&
+        isValidOptionalString(data, 'createdBy', 128) &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
+    }
+
+    function isValidMasterContactWrite(data) {
+      return data.keys().size() <= 50 &&
+        isValidOptionalString(data, 'id', 128) &&
+        isValidOptionalString(data, 'contactId', 128) &&
+        isValidOptionalString(data, 'originalDocId', 128) &&
+        isValidOptionalString(data, 'fullName', 200) &&
+        isValidOptionalString(data, 'contactNombre', 120) &&
+        isValidOptionalString(data, 'contactApellido', 120) &&
+        isValidOptionalString(data, 'accountId', 128) &&
+        isValidOptionalString(data, 'companyName', 250) &&
+        isValidOptionalString(data, 'parentAccountId', 128) &&
+        isValidOptionalString(data, 'parentAccountName', 250) &&
+        isValidOptionalString(data, 'role', 100) &&
+        isValidOptionalString(data, 'contactRole', 100) &&
+        isValidOptionalString(data, 'phone', 60) &&
+        isValidOptionalString(data, 'email', 254) &&
+        isValidOptionalString(data, 'notes', 2000) &&
+        isValidOptionalMap(data, 'socials') &&
+        isValidOptionalMap(data, 'measurements') &&
+        isValidOptionalMap(data, 'sizingMatrix') &&
+        isValidOptionalMap(data, 'corporateAffiliation') &&
+        isValidOptionalNonNegNumber(data, 'activeOrdersCount') &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
+    }
+
+    function isValidAccountContactWrite(data) {
+      return data.keys().size() <= 20 &&
+        isValidOptionalString(data, 'id', 128) &&
+        isValidOptionalString(data, 'linkId', 128) &&
+        isValidOptionalString(data, 'contactId', 128) &&
+        isValidOptionalString(data, 'accountId', 128) &&
+        isValidOptionalString(data, 'role', 100) &&
+        isValidOptionalBool(data, 'isPrimary') &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
+    }
+
+    function isValidOrderWrite(data) {
+      return data.keys().size() <= 80 &&
+        isValidOptionalString(data, 'id', 128) &&
+        isValidOptionalString(data, 'docType', 40) &&
+        isValidOptionalString(data, 'customer', 300) &&
+        isValidOptionalString(data, 'customerFirstName', 120) &&
+        isValidOptionalString(data, 'customerLastName', 120) &&
+        isValidOptionalString(data, 'phone', 60) &&
+        isValidOptionalString(data, 'email', 254) &&
+        isValidOptionalString(data, 'city', 120) &&
+        isValidOptionalString(data, 'address', 500) &&
+        isValidOptionalString(data, 'category', 100) &&
+        isValidOptionalString(data, 'pricingTier', 60) &&
+        isValidOptionalString(data, 'accountId', 128) &&
+        isValidOptionalString(data, 'companyName', 250) &&
+        isValidOptionalString(data, 'status', 100) &&
+        isValidOptionalString(data, 'productionStatus', 100) &&
+        isValidOptionalString(data, 'notes', 10000) &&
+        isValidOptionalString(data, 'logo', 300000) &&
+        isValidOptionalList(data, 'items', 500) &&
+        isValidOptionalList(data, 'logos', 50) &&
+        isValidOptionalList(data, 'refImages', 50) &&
+        isValidOptionalList(data, 'orderLogos', 50) &&
+        isValidOptionalList(data, 'institutionalRoster', 1000) &&
+        isValidOptionalList(data, 'paymentHistory', 200) &&
+        isValidOptionalBool(data, 'isInstitutional') &&
+        isValidOptionalNonNegNumber(data, 'totalPrice') &&
+        isValidOptionalNonNegNumber(data, 'subtotal') &&
+        isValidOptionalNonNegNumber(data, 'totalDiscount') &&
+        isValidOptionalNonNegNumber(data, 'amountCollected') &&
+        isValidOptionalNonNegNumber(data, 'manualDiscount') &&
+        isValidOptionalMap(data, 'timestamps') &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
+    }
+
+    function isValidSettingsWrite(data) {
+      return data.keys().size() <= 50 &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
+    }
+
+    function isValidMetadataCounterWrite(data) {
+      return data.keys().size() <= 10 &&
+        isValidOptionalNonNegNumber(data, 'currentSequence') &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
     }
 
     // ===============================================================
@@ -180,33 +365,53 @@ service cloud.firestore {
       );
     }
 
-    // Pricing & Catalog documents (Staging guardrail: open read/create/update; delete admin-only)
+    // Pricing, Catalog & Media documents ('global' and 'media__*': authenticated read, admin-only write)
     match /pricing/{docId} {
-      allow read: if true;
-      allow create, update: if isValidPricingWrite(request.resource.data);
+      allow read: if isAuthenticated();
+      allow create, update: if isAdminCaller() && isValidPricingWrite(request.resource.data);
       allow delete: if isAdminCaller();
     }
 
-    // Staging CRM & Operations Collections (Unblocks loginAsStagingAdmin local testing)
+    // CRM & Operational Collections (strictly require authenticated Firebase user + schema validation)
     match /clientAccounts/{docId} {
-      allow read, write: if true;
-    }
-    match /masterContacts/{docId} {
-      allow read, write: if true;
-    }
-    match /account_contacts/{docId} {
-      allow read, write: if true;
-    }
-    match /orders/{docId} {
-      allow read, write: if true;
-    }
-    match /settings/{docId} {
-      allow read, write: if true;
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidClientAccountWrite(request.resource.data);
+      allow delete: if isAuthenticated();
     }
 
-    // Default lockdown fallback for anything else
+    match /masterContacts/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidMasterContactWrite(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /account_contacts/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidAccountContactWrite(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /orders/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidOrderWrite(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+
+    match /settings/{docId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidSettingsWrite(request.resource.data);
+      allow delete: if isAdminCaller();
+    }
+
+    match /metadata/{counterId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidMetadataCounterWrite(request.resource.data);
+      allow delete: if isAdminCaller();
+    }
+
+    // Default deny fallback
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }
