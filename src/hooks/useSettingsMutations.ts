@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react';
-import { doc, setDoc, writeBatch } from 'firebase/firestore';
+import React, { useState, useEffect } from 'react';
+import { doc, setDoc, writeBatch, Firestore } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../firebase';
+import {
+  SettingsFormState,
+  SettingsPricingLike,
+  SettingsServiceEntry,
+  validateSettingsPricingForm,
+} from '../utils/settingsFormValidation';
 
-export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
+export type { SettingsFormState, SettingsPricingLike, SettingsServiceEntry };
+
+export const useSettingsMutations = (
+  pricing: SettingsPricingLike | null | undefined,
+  db: unknown,
+  orders: unknown[]
+) => {
   const [activeSettingsTab, setActiveSettingsTab] = useState<'A' | 'B' | 'C' | 'D' | 'E'>('A');
-  const [settingsForm, setSettingsForm] = useState<any>({
+  const [settingsForm, setSettingsFormState] = useState<SettingsFormState>({
     garments: {},
     udiPricing: {},
     specialPresets: {},
@@ -13,12 +25,21 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
     specialPresetBundles: {},
     specialPresetDiscounts: {},
     discountRulesByTier: {},
-    services: []
+    services: [],
   });
-  
+
+  const setSettingsForm: React.Dispatch<React.SetStateAction<unknown>> = (action) => {
+    if (typeof action === 'function') {
+      const updater = action as (prev: SettingsFormState) => SettingsFormState;
+      setSettingsFormState((prev) => updater(prev));
+    } else if (action && typeof action === 'object') {
+      setSettingsFormState(action as SettingsFormState);
+    }
+  };
+
   useEffect(() => {
     if (pricing) {
-      setSettingsForm({
+      setSettingsFormState({
         garments: pricing.garments || {},
         udiPricing: pricing.udiPricing || {},
         specialPresets: pricing.specialPresets || {},
@@ -28,7 +49,8 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
         specialPresetDiscounts: pricing.specialPresetDiscounts || {},
         discountRulesByTier: pricing.discountRulesByTier || {},
         services: pricing.services || [],
-        catalogGarments: pricing.catalogGarments || {}
+        exclusionGroups: pricing.exclusionGroups,
+        catalogGarments: pricing.catalogGarments || {},
       });
     }
   }, [pricing]);
@@ -38,7 +60,7 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
   const [pricingValidationError, setPricingValidationError] = useState<string | null>(null);
   const [invalidPriceFields, setInvalidPriceFields] = useState<Set<string>>(new Set());
   const [newProductInput, setNewProductInput] = useState('');
-  const [newFabricInputs, setNewFabricInputs] = useState<{[garment: string]: string}>({});
+  const [newFabricInputs, setNewFabricInputs] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
   const [tempName, setTempName] = useState<string>('');
@@ -47,7 +69,7 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
   const [newPresetNameInput, setNewPresetNameInput] = useState<string>('');
   const [showAddPresetInput, setShowAddPresetInput] = useState<boolean>(false);
   const [newPresetInput, setNewPresetInput] = useState<string>('');
-  const [newPresetFabricInputs, setNewPresetFabricInputs] = useState<{[garment: string]: string}>({});
+  const [newPresetFabricInputs, setNewPresetFabricInputs] = useState<Record<string, string>>({});
   const [confirmDeletePreset, setConfirmDeletePreset] = useState<string | null>(null);
 
   const [enteredPin, setEnteredPin] = useState('');
@@ -60,7 +82,7 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
       setEditingName(null);
       return;
     }
-    setSettingsForm((p: any) => {
+    setSettingsFormState((p) => {
       const updateds = { ...p.garments };
       if (updateds[oldName]) {
         updateds[trimmedNewName] = updateds[oldName];
@@ -74,18 +96,21 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
       }
 
       const updatedSpecialPresets = { ...p.specialPresets };
-      Object.keys(updatedSpecialPresets).forEach(presetKey => {
-        if (updatedSpecialPresets[presetKey][oldName]) {
-          updatedSpecialPresets[presetKey][trimmedNewName] = updatedSpecialPresets[presetKey][oldName];
+      Object.keys(updatedSpecialPresets).forEach((presetKey) => {
+        if (updatedSpecialPresets[presetKey]?.[oldName]) {
+          updatedSpecialPresets[presetKey] = {
+            ...updatedSpecialPresets[presetKey],
+            [trimmedNewName]: updatedSpecialPresets[presetKey][oldName],
+          };
           delete updatedSpecialPresets[presetKey][oldName];
         }
       });
 
-      const updatedServices = [...(p.services || [])].map((srv: any) => {
-        let updated = { ...srv };
+      const updatedServices = [...(p.services || [])].map((srv) => {
+        const updated: SettingsServiceEntry = { ...srv };
         if (updated.garment === oldName) updated.garment = trimmedNewName;
         if (Array.isArray(updated.appliesToStandard) && updated.appliesToStandard.includes(oldName)) {
-          updated.appliesToStandard = updated.appliesToStandard.map((g: string) => g === oldName ? trimmedNewName : g);
+          updated.appliesToStandard = updated.appliesToStandard.map((g) => (g === oldName ? trimmedNewName : g));
         }
         return updated;
       });
@@ -95,53 +120,18 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
         garments: updateds,
         udiPricing: updatedUdiPricing,
         specialPresets: updatedSpecialPresets,
-        services: updatedServices
+        services: updatedServices,
       };
     });
     setEditingName(null);
   };
 
   const validatePricingForm = (): boolean => {
-    const invalid = new Set<string>();
-    const METADATA_KEYS = new Set(['sku', 'baseGarment', 'id', 'name', 'category', 'isPrimary', 'fabricSku']);
-    
-    // Check Tab A (Global / Default)
-    Object.keys(settingsForm.garments).forEach((garment) => {
-      const fabrics = settingsForm.garments[garment] || {};
-      Object.keys(fabrics).forEach((fabric) => {
-        if (METADATA_KEYS.has(fabric) || fabric.startsWith('_')) return;
-        if (garment === 'Gorro' && (fabric.includes('Tornado') || fabric.includes('Gabardina de 1ra'))) return;
-        const val = fabrics[fabric];
-        const numVal = typeof val === 'number' ? val : (typeof val === 'object' && val !== null ? Number(val.priceRaleo || val.priceB2B || 0) : 0);
-        if (val === undefined || val === null || isNaN(numVal) || numVal <= 0) {
-          invalid.add(`tabA:${garment}:${fabric}`);
-          invalid.add(`tabA:${garment}:${fabric}:raleo`);
-          invalid.add(`tabA:${garment}:${fabric}:b2b`);
-        }
-      });
-    });
-
-    // Check Tab B (Special Presets)
-    const currentPresets = settingsForm.specialPresets || {};
-    Object.keys(currentPresets).forEach(pKey => {
-      const pData = currentPresets[pKey] || {};
-      Object.keys(pData).forEach((garment) => {
-        const fabrics = pData[garment] || {};
-        Object.keys(fabrics).forEach((fabric) => {
-          if (METADATA_KEYS.has(fabric) || fabric.startsWith('_')) return;
-          const val = fabrics[fabric];
-          const numVal = typeof val === 'number' ? val : (typeof val === 'object' && val !== null ? Number(val.priceRaleo || val.priceB2B || 0) : 0);
-          if (val === undefined || val === null || isNaN(numVal) || numVal <= 0) {
-            invalid.add(`tabB:${pKey}:${garment}:${fabric}`);
-          }
-        });
-      });
-    });
-
+    const invalid = validateSettingsPricingForm(settingsForm);
     setInvalidPriceFields(invalid);
 
     if (invalid.size > 0) {
-      setPricingValidationError("Todos los precios (Raleo y B2B) deben estar configurados antes de guardar.");
+      setPricingValidationError('Todos los precios (Raleo y B2B) deben estar configurados antes de guardar.');
       const firstKey = Array.from(invalid)[0];
       if (firstKey.startsWith('tabA:')) {
         setActiveSettingsTab('A');
@@ -157,15 +147,13 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
     return true;
   };
 
-  const requestUpdatePricing = (e: any) => {
-    if(e) e.preventDefault();
-    if (!validatePricingForm()) {
-      return;
-    }
+  const requestUpdatePricing = (e?: React.SyntheticEvent) => {
+    if (e) e.preventDefault();
+    if (!validatePricingForm()) return;
     setShowPricingConfirm(true);
   };
 
-  const executeUpdatePricing = async (e?: any) => {
+  const executeUpdatePricing = async (e?: React.SyntheticEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
@@ -177,7 +165,7 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
     setShowPricingConfirm(false);
     try {
       const updatedSpecialPresets = settingsForm.specialPresets || {};
-      const updatedUdiPricing = updatedSpecialPresets["UDI Especial"] ? updatedSpecialPresets["UDI Especial"] : {};
+      const updatedUdiPricing = updatedSpecialPresets['UDI Especial'] ? updatedSpecialPresets['UDI Especial'] : {};
 
       const payload = {
         ...settingsForm,
@@ -188,34 +176,36 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
         specialPresetDiscounts: settingsForm.specialPresetDiscounts || {},
         discountRulesByTier: settingsForm.discountRulesByTier || {},
         udiPricing: updatedUdiPricing,
-        updatedAt: Date.now()
+        updatedAt: new Date().toISOString(),
       };
 
-      await setDoc(doc(db, 'pricing', 'global'), payload, { merge: true });
+      await setDoc(doc(db as Firestore, 'pricing', 'global'), payload, { merge: true });
       setShowPricingConfirm(false);
       setShowPricingSuccess(true);
       setTimeout(() => setShowPricingSuccess(false), 3000);
-    } catch(err) {
+    } catch (err) {
       setShowPricingConfirm(false);
       handleFirestoreError(err, OperationType.UPDATE, 'pricing/global');
     }
   };
-  
+
   const handleResetDatabase = async () => {
     if (enteredPin !== '3606') return;
     setIsResetting(true);
     try {
-      const batch = writeBatch(db);
-      orders.forEach((o: any) => {
-        batch.delete(doc(db, 'orders', o.id));
+      const firestoreDb = db as Firestore;
+      const batch = writeBatch(firestoreDb);
+      orders.forEach((o) => {
+        const orderId = (o as { id?: string } | null)?.id;
+        if (orderId) batch.delete(doc(firestoreDb, 'orders', orderId));
       });
       await batch.commit();
       alert('La base de datos de pedidos fue restablecida con éxito. Todo ha sido limpiado para sus pruebas.');
       setIsResetConfirmOpen(false);
       setEnteredPin('');
     } catch (err) {
-      console.error("Error al restablecer:", err);
-      alert("Error al restablecer los pedidos en Firestore. Verifique sus permisos.");
+      console.error('Error al restablecer:', err);
+      alert('Error al restablecer los pedidos en Firestore. Verifique sus permisos.');
     } finally {
       setIsResetting(false);
     }
@@ -246,6 +236,6 @@ export const useSettingsMutations = (pricing: any, db: any, orders: any[]) => {
     validatePricingForm,
     requestUpdatePricing,
     executeUpdatePricing,
-    handleResetDatabase
+    handleResetDatabase,
   };
 };

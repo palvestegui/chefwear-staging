@@ -1,36 +1,53 @@
-import { 
+import {
   calculateVolumeScaledServiceUnitPrice,
   calculateOrderWideLogoQuantity,
-  getGarmentPriceValue, 
-  getPricingTierFromClientType, 
-  collapseUdiItems, 
+  getGarmentPriceValue,
+  getPricingTierFromClientType,
+  collapseUdiItems,
   computeDiscountEngine,
-  DiscountEngineResult 
+  DiscountEngineResult,
+  resolveGarmentPrice,
 } from '../utils/pricingCalculator';
-import { OrderItem, ServicePricing } from '../types';
+import { CatalogGarmentPricing, OrderItem, PricingData, ServicePricing } from '../types';
 import { getUdiBundleBreakdown } from '../domains/udi/udiBundleEngine';
 import { consolidateCommercialItems } from '../utils/orderItemConsolidation';
 import { DEFAULT_PRICING } from '../utils/pricingDefaults';
+import { areFabricsEquivalent } from '../domains/pricing/fabricAliasMap';
 
-export const usePricingEngine = (pricing: any) => {
-  const effectivePricing = pricing || DEFAULT_PRICING;
+export type PricingItemInput = Partial<OrderItem> & {
+  accountId?: string;
+};
 
-  const getItemUnitPrice = (item: any, category: string = 'Personal', accountId?: string) => {
+interface PresetVariantEntry {
+  priceRaleo?: number | string;
+  priceB2B?: number | string;
+}
+
+type PresetFabricMap = Record<string, number | string | PresetVariantEntry>;
+type PresetGarmentMap = Record<string, number | string | PresetFabricMap>;
+
+export const usePricingEngine = (pricing: PricingData | null | undefined) => {
+  const effectivePricing: PricingData = pricing || DEFAULT_PRICING;
+
+  const getItemUnitPrice = (item: PricingItemInput, category: string = 'Personal', accountId?: string): number => {
     if (item?.customUnitPrice !== undefined && item?.customUnitPrice !== null) {
       return Number(item.customUnitPrice);
     }
     if (!effectivePricing) return 0;
 
-    const specialPresets = effectivePricing.specialPresets || { "UDI Especial": effectivePricing.udiPricing || {} };
+    const specialPresets = (effectivePricing.specialPresets || {
+      'UDI Especial': effectivePricing.udiPricing || {},
+    }) as Record<string, PresetGarmentMap>;
     const rawTier = item?.pricingTier || item?.specialPreset || category || item?.category || 'Personal';
     const finalAccountId = accountId || item?.accountId;
 
     // 1. FOR "Uniforme Completo UDI": ALWAYS dynamically calculate total by summing active UDI preset prices
     if (item?.name === 'Uniforme Completo UDI') {
-      const presetData = (item?.specialPreset && specialPresets[item.specialPreset])
-        ? specialPresets[item.specialPreset]
-        : (specialPresets['UDI Especial'] || effectivePricing.udiPricing || {});
-      const breakdown = getUdiBundleBreakdown(presetData);
+      const presetData =
+        item?.specialPreset && specialPresets[item.specialPreset]
+          ? specialPresets[item.specialPreset]
+          : specialPresets['UDI Especial'] || (effectivePricing.udiPricing as PresetGarmentMap) || {};
+      const breakdown = getUdiBundleBreakdown(presetData as Record<string, unknown>);
       return breakdown.total;
     }
 
@@ -42,7 +59,17 @@ export const usePricingEngine = (pricing: any) => {
       matchedPresetKey = item.pricingTier;
     } else if (specialPresets[category]) {
       matchedPresetKey = category;
-    } else if (finalAccountId === 'ACC-001' || category === 'UDI' || category === 'Alumnos UDI' || category === 'Estudiante UDI' || item?.category === 'UDI' || rawTier === 'Contrato Institucional' || rawTier === 'Estudiante UDI' || rawTier === 'UDI Especial' || category === 'UDI Especial') {
+    } else if (
+      finalAccountId === 'ACC-001' ||
+      category === 'UDI' ||
+      category === 'Alumnos UDI' ||
+      category === 'Estudiante UDI' ||
+      item?.category === 'UDI' ||
+      rawTier === 'Contrato Institucional' ||
+      rawTier === 'Estudiante UDI' ||
+      rawTier === 'UDI Especial' ||
+      category === 'UDI Especial'
+    ) {
       if (specialPresets['UDI Especial']) {
         matchedPresetKey = 'UDI Especial';
       }
@@ -51,33 +78,44 @@ export const usePricingEngine = (pricing: any) => {
     if (matchedPresetKey && specialPresets[matchedPresetKey]) {
       const presetData = specialPresets[matchedPresetKey];
 
-      // Single item lookup in special preset
       let presetPrice = 0;
-      const garmentKey = Object.keys(presetData).find(k => k.toLowerCase() === (item.name || '').toLowerCase()) || item.name;
-      if (presetData[garmentKey]) {
-        const gData = presetData[garmentKey];
+      const itemNameLower = (item.name || '').toLowerCase();
+      const garmentKey =
+        Object.keys(presetData).find((k) => k.toLowerCase() === itemNameLower) || (item.name || '');
+      const gData = garmentKey ? presetData[garmentKey] : undefined;
+
+      if (gData !== undefined) {
         if (typeof gData === 'number') {
           presetPrice = gData;
         } else if (typeof gData === 'string') {
           const parsed = parseFloat(gData);
-          if (!isNaN(parsed)) presetPrice = parsed;
+          if (!Number.isNaN(parsed)) presetPrice = parsed;
         } else if (typeof gData === 'object' && gData !== null) {
+          const extractPresetVal = (val: number | string | PresetVariantEntry | undefined): number => {
+            if (typeof val === 'number') return val;
+            if (typeof val === 'string') {
+              const p = parseFloat(val);
+              return Number.isNaN(p) ? 0 : p;
+            }
+            if (val && typeof val === 'object') {
+              return Number(val.priceRaleo ?? val.priceB2B ?? 0);
+            }
+            return 0;
+          };
+
           if (item.fabric && gData[item.fabric] !== undefined) {
-            const fVal = gData[item.fabric];
-            presetPrice = typeof fVal === 'number' ? fVal : Number(fVal?.priceRaleo ?? fVal?.priceB2B ?? 0);
+            presetPrice = extractPresetVal(gData[item.fabric]);
           }
           if (presetPrice === 0 && item.fabric) {
-            const fabKey = Object.keys(gData).find(f => f.toLowerCase() === item.fabric.toLowerCase());
+            const fabKey = Object.keys(gData).find((f) => areFabricsEquivalent(f, item.fabric));
             if (fabKey && gData[fabKey] !== undefined) {
-              const fVal = gData[fabKey];
-              presetPrice = typeof fVal === 'number' ? fVal : Number(fVal?.priceRaleo ?? fVal?.priceB2B ?? 0);
+              presetPrice = extractPresetVal(gData[fabKey]);
             }
           }
           if (presetPrice === 0) {
             const vals = Object.values(gData);
             if (vals.length > 0) {
-              const first = vals[0];
-              presetPrice = typeof first === 'number' ? first : Number((first as any)?.priceRaleo ?? (first as any)?.priceB2B ?? 0);
+              presetPrice = extractPresetVal(vals[0]);
             }
           }
         }
@@ -86,58 +124,78 @@ export const usePricingEngine = (pricing: any) => {
       if (presetPrice > 0) return presetPrice;
     }
 
-    // 3. Tab A - Catalog Resolution by Pricing Tier (Basic Raleo vs Negotiated B2B)
+    // 3. Tab A & Catalog Resolution by Pricing Tier (delegated to resolveGarmentPrice)
     const isB2B = rawTier === 'Estándar B2B' || rawTier === 'B2B Estándar' || rawTier === 'B2B';
-
-    return getGarmentPriceValue(effectivePricing.garments, item.name, item.fabric, isB2B, item.sku, item.fabricSku);
+    const resolved = resolveGarmentPrice({
+      pricing: effectivePricing as {
+        garments?: Record<string, unknown>;
+        catalogGarments?: Record<string, CatalogGarmentPricing> | CatalogGarmentPricing[];
+        specialPresets?: Record<string, unknown>;
+        udiPricing?: Record<string, unknown>;
+      },
+      garmentName: item.name,
+      fabricName: item.fabric,
+      sku: item.sku,
+      fabricSku: item.fabricSku,
+      isB2B,
+    });
+    return resolved.price;
   };
 
-  
-  const getServiceUnitPrice = (s: string, item: OrderItem, orderItems?: OrderItem[]): number => {
+  const getServiceUnitPrice = (s: string, item: PricingItemInput, orderItems?: OrderItem[]): number => {
     if (!effectivePricing) return 0;
     const srvDef = effectivePricing.services?.find((x: ServicePricing) => x.name === s);
-    if (srvDef?.type === 'Escala de Volumen (Logos)' || (!srvDef && s.toUpperCase().includes('LOGO'))) { 
-       if (item?.customServicePrices && item.customServicePrices[s] !== undefined) {
-          return Number(item.customServicePrices[s]) || 0;
-       }
-       // Order-Wide Logo Pooling: aggregate quantity across all line items sharing this logo service
-       const pooledQty = orderItems && Array.isArray(orderItems) && orderItems.length > 0
+    if (srvDef?.type === 'Escala de Volumen (Logos)' || (!srvDef && s.toUpperCase().includes('LOGO'))) {
+      if (item?.customServicePrices && item.customServicePrices[s] !== undefined) {
+        return Number(item.customServicePrices[s]) || 0;
+      }
+      const pooledQty =
+        orderItems && Array.isArray(orderItems) && orderItems.length > 0
           ? calculateOrderWideLogoQuantity(orderItems, s)
-          : (Number(item?.qty) || 1);
-       return calculateVolumeScaledServiceUnitPrice(pooledQty);
+          : Number(item?.qty) || 1;
+      return calculateVolumeScaledServiceUnitPrice(pooledQty);
     }
-    const customPrice = (item.customServicePrices && item.customServicePrices[s] !== undefined) ? Number(item.customServicePrices[s]) : (srvDef?.price || 0);
+    const customPrice =
+      item.customServicePrices && item.customServicePrices[s] !== undefined
+        ? Number(item.customServicePrices[s])
+        : srvDef?.price || 0;
     return Number(customPrice) || 0;
   };
 
-  const calculateItemPriceRaw = (item: any, category: string = 'Personal', accountId?: string, orderItems?: OrderItem[]): number => {
+  const calculateItemPriceRaw = (
+    item: PricingItemInput,
+    category: string = 'Personal',
+    accountId?: string,
+    orderItems?: OrderItem[]
+  ): number => {
     if (!effectivePricing) return 0;
-    
-    const getSrvCost = (s: string) => getServiceUnitPrice(s, item as OrderItem, orderItems);
 
+    const getSrvCost = (s: string) => getServiceUnitPrice(s, item, orderItems);
     const unitBase = getItemUnitPrice(item, item.pricingTier || category, accountId || item?.accountId);
 
-    const srvTotal = item.services?.reduce((a: number, s: string) => {
-       return a + getSrvCost(s);
-    }, 0) || 0;
+    const srvTotal =
+      item.services?.reduce((a: number, s: string) => {
+        return a + getSrvCost(s);
+      }, 0) || 0;
 
-    const customSrv = item.embroideries?.reduce((a: number, e: string) => {
-      if (e.startsWith('Otro:')) {
-         const parts = e.split('|');
-         if (parts.length === 2) return a + parseFloat(parts[1]) || 0;
-      }
-      return a;
-    }, 0) || 0;
+    const customSrv =
+      item.embroideries?.reduce((a: number, e: string) => {
+        if (e.startsWith('Otro:')) {
+          const parts = e.split('|');
+          if (parts.length === 2) return a + parseFloat(parts[1]) || 0;
+        }
+        return a;
+      }, 0) || 0;
 
     return (unitBase + srvTotal + customSrv) * (item.qty || 1);
   };
 
   const calculateDiscountEngine = (
-    itemsList: any[], 
-    category: string = 'Personal', 
-    paymentMethod: string = '50/50 - Adelantado/Entrega', 
-    manualDiscount: number = 0, 
-    clientType?: string, 
+    itemsList: PricingItemInput[],
+    category: string = 'Personal',
+    paymentMethod: string = '50/50 - Adelantado/Entrega',
+    manualDiscount: number = 0,
+    clientType?: string,
     accountId?: string,
     migrationFlatDiscount: number = 0
   ): DiscountEngineResult => {
@@ -148,28 +206,68 @@ export const usePricingEngine = (pricing: any) => {
       manualDiscount,
       clientType,
       accountId,
-      (it, cat, accId) => calculateItemPriceRaw(it, cat, accId, itemsList),
+      (it: PricingItemInput, cat?: string, accId?: string) =>
+        calculateItemPriceRaw(it, cat, accId, itemsList as OrderItem[]),
       {
         discountRulesByTier: effectivePricing?.discountRulesByTier,
-        specialPresetDiscounts: effectivePricing?.specialPresetDiscounts
+        specialPresetDiscounts: effectivePricing?.specialPresetDiscounts,
       },
       migrationFlatDiscount,
       effectivePricing?.services
     );
   };
 
-  const calculateItemDiscountedPrice = (item: any, category: string, paymentMethod: string, manualDiscount: number = 0, clientType?: string, accountId?: string) => {
+  const calculateItemDiscountedPrice = (
+    item: PricingItemInput,
+    category: string,
+    paymentMethod: string,
+    manualDiscount: number = 0,
+    clientType?: string,
+    accountId?: string
+  ) => {
     const rawTotal = calculateItemPriceRaw(item, category, accountId);
     if (rawTotal === 0) return 0;
     return calculateDiscountEngine([item], category, paymentMethod, manualDiscount, clientType, accountId).total;
   };
 
-  const calculateTotalPrice = (itemsList: any[], category: string = 'Personal', paymentMethod: string = '50/50 - Adelantado/Entrega', manualDiscount: number = 0, clientType?: string, accountId?: string, migrationFlatDiscount: number = 0) => {
-    return calculateDiscountEngine(itemsList, category, paymentMethod, manualDiscount, clientType, accountId, migrationFlatDiscount).total;
+  const calculateTotalPrice = (
+    itemsList: PricingItemInput[],
+    category: string = 'Personal',
+    paymentMethod: string = '50/50 - Adelantado/Entrega',
+    manualDiscount: number = 0,
+    clientType?: string,
+    accountId?: string,
+    migrationFlatDiscount: number = 0
+  ) => {
+    return calculateDiscountEngine(
+      itemsList,
+      category,
+      paymentMethod,
+      manualDiscount,
+      clientType,
+      accountId,
+      migrationFlatDiscount
+    ).total;
   };
 
-  const getOrderBreakdown = (itemsList: any[], category: string = 'Personal', paymentMethod: string = '50/50 - Adelantado/Entrega', manualDiscount: number = 0, clientType?: string, accountId?: string, migrationFlatDiscount: number = 0) => {
-    return calculateDiscountEngine(itemsList, category, paymentMethod, manualDiscount, clientType, accountId, migrationFlatDiscount);
+  const getOrderBreakdown = (
+    itemsList: PricingItemInput[],
+    category: string = 'Personal',
+    paymentMethod: string = '50/50 - Adelantado/Entrega',
+    manualDiscount: number = 0,
+    clientType?: string,
+    accountId?: string,
+    migrationFlatDiscount: number = 0
+  ) => {
+    return calculateDiscountEngine(
+      itemsList,
+      category,
+      paymentMethod,
+      manualDiscount,
+      clientType,
+      accountId,
+      migrationFlatDiscount
+    );
   };
 
   return {
@@ -183,6 +281,6 @@ export const usePricingEngine = (pricing: any) => {
     calculateItemDiscountedPrice,
     calculateTotalPrice,
     getOrderBreakdown,
-    getPricingTierFromClientType
+    getPricingTierFromClientType,
   };
 };

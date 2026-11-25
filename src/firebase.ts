@@ -1,17 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import appletConfig from '../firebase-applet-config.json';
 
-export const firebaseConfig = {
-  apiKey: "AIzaSyDMjYBLUCJJ_BdJslKpk4iJUS3LnOAd3Yc",
-  authDomain: "azafran-staging.firebaseapp.com",
-  projectId: "azafran-staging",
-  storageBucket: "azafran-staging.firebasestorage.app",
-  messagingSenderId: "225609753361",
-  appId: "1:225609753361:web:3c49d39531080360a1a2b0",
-  measurementId: "G-7WNKD8S1QE",
-  firestoreDatabaseId: "ai-studio-staging-ab4c50fd-e8ed-40a2-a91c-6782ae7f098e"
-};
+export const firebaseConfig = appletConfig;
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);

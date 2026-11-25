@@ -33,19 +33,21 @@ export const purgeQuotesAndOrders = async (firestore: Firestore): Promise<number
 };
 
 export const resetCatalogPricing = async (firestore: Firestore): Promise<void> => {
+  const nowIso = new Date().toISOString();
   await setDoc(doc(firestore, 'pricing', 'global'), {
     garments: {},
-    catalog: [],
+    catalog: {},
     catalogGarments: {},
     version: 0,
-    updatedAt: Date.now(),
+    lastSyncedAt: Date.now(),
+    updatedAt: nowIso,
   }, { merge: true });
 
   try {
     await setDoc(doc(firestore, 'settings', 'pricing'), {
       garments: {},
       catalogGarments: {},
-      updatedAt: Date.now(),
+      updatedAt: nowIso,
     }, { merge: true });
   } catch (legacyErr) {
     console.warn('[Maintenance] Legacy settings/pricing reset skipped:', legacyErr);

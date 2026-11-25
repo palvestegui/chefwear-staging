@@ -33,9 +33,17 @@ service cloud.firestore {
       );
     }
 
-    // Pricing & Catalog documents (already open)
+    function isValidPricingWrite(data) {
+      return (!('updatedAt' in data) || data.updatedAt is string) &&
+        (!('catalogGarments' in data) || data.catalogGarments is map) &&
+        (!('garments' in data) || data.garments is map) &&
+        (!('lastSyncedAt' in data) || data.lastSyncedAt is number);
+    }
+
+    // Pricing & Catalog documents
     match /pricing/{docId} {
-      allow read, write: if true;
+      allow read: if true;
+      allow write: if isValidPricingWrite(request.resource.data);
     }
 
     // Staging CRM & Operations Collections (Unblocks testing while Google OAuth is shelved)

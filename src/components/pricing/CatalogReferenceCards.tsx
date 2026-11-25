@@ -18,8 +18,9 @@ export const CatalogReferenceCards: React.FC<CatalogReferenceCardsProps> = ({
     }
     const query = searchQuery.toLowerCase().trim();
     return entries.filter(([name, data]) => {
+      const fabricLabel = data.defaultFabricName || data.fabric;
       const matchName = name.toLowerCase().includes(query);
-      const matchFabric = data.fabric?.toLowerCase().includes(query);
+      const matchFabric = fabricLabel?.toLowerCase().includes(query);
       const matchCategory = data.category?.toLowerCase().includes(query);
       const matchDesc = data.description?.toLowerCase().includes(query);
       return matchName || matchFabric || matchCategory || matchDesc;
@@ -102,10 +103,10 @@ export const CatalogReferenceCards: React.FC<CatalogReferenceCardsProps> = ({
                 })()}
               </div>
 
-              {data.fabric && (
+              {(data.defaultFabricName || data.fabric) && (
                 <div className="flex items-center gap-1.5 text-xs text-stone-300 font-semibold">
                   <Layers size={13} className="text-stone-500 shrink-0" />
-                  <span>Tela: {data.fabric}</span>
+                  <span>Tela: {data.defaultFabricName || data.fabric}</span>
                 </div>
               )}
 

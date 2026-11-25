@@ -61,6 +61,8 @@ export interface CatalogGarmentPricing {
   priceB2B: number;   // B2B Mayorista (Bs)
   sku?: string;
   fabric?: string;
+  defaultFabricName?: string;
+  defaultFabricSku?: string;
   consumptionMeters?: number;
   description?: string;
   category?: string;

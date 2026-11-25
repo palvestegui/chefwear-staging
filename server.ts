@@ -1,9 +1,31 @@
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
+dotenv.config();
+
 import express, { Request, Response } from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
 import { adminDb } from "./src/server/adminDb";
+
+function normalizeCatalogGarmentsMap(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, unknown>;
+  }
+  if (Array.isArray(raw)) {
+    const mapped: Record<string, unknown> = {};
+    raw.forEach((item, index) => {
+      if (item && typeof item === "object") {
+        const entry = item as { name?: unknown; sku?: unknown; id?: unknown };
+        const key = String(entry.name || entry.sku || entry.id || `item_${index}`);
+        mapped[key] = item;
+      }
+    });
+    return mapped;
+  }
+  return {};
+}
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -17,7 +39,7 @@ interface JsonRpcRequest {
 
 async function startServer() {
   const app = express();
-  const PORT = process.env.NODE_ENV === "production" ? (Number(process.env.PORT) || 3000) : 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Higher payload limit for full catalog matrices (including rich descriptions and images)
   app.use(express.json({ limit: "50mb" }));
@@ -39,9 +61,14 @@ async function startServer() {
   const handleCatalogSync = async (req: Request, res: Response) => {
     try {
       const payload = {
-        garments: (req.body?.garments || {}) as Record<string, unknown>,
-        catalogGarments: (req.body?.catalogGarments || []) as unknown,
-        lastSyncedAt: Date.now()
+        garments: (req.body?.garments && typeof req.body.garments === "object" && !Array.isArray(req.body.garments)
+          ? req.body.garments
+          : {}) as Record<string, unknown>,
+        catalogGarments: normalizeCatalogGarmentsMap(req.body?.catalogGarments),
+        lastSyncedAt: typeof req.body?.lastSyncedAt === "number" ? req.body.lastSyncedAt : Date.now(),
+        updatedAt: typeof req.body?.updatedAt === "string" && req.body.updatedAt.trim()
+          ? req.body.updatedAt
+          : new Date().toISOString()
       };
 
       // Write with { merge: true }
@@ -56,10 +83,8 @@ async function startServer() {
 
       return res.json({
         success: true,
-        syncedGarmentsCount: Object.keys(payload.garments || {}).length,
-        syncedCatalogCount: Array.isArray(payload.catalogGarments)
-          ? payload.catalogGarments.length
-          : Object.keys(payload.catalogGarments || {}).length,
+        syncedGarmentsCount: Object.keys(payload.garments).length,
+        syncedCatalogCount: Object.keys(payload.catalogGarments).length,
         message: 'Ventas Staging pricing/global successfully updated'
       });
     } catch (err: unknown) {
@@ -136,8 +161,8 @@ async function startServer() {
                     description: "Multi-fabric pricing dictionary: { [garment]: { [fabric]: { priceRaleo, priceB2B } } }"
                   },
                   catalogGarments: {
-                    type: "array",
-                    description: "Array of finished catalog garments pinned to default fabrics"
+                    type: "object",
+                    description: "Map of finished catalog garments keyed by garment name"
                   }
                 }
               }
@@ -190,13 +215,14 @@ async function startServer() {
           toolResult = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } else if (toolName === "staging_update_pricing_matrix") {
           const updatePayload: Record<string, unknown> = {
-            lastSyncedAt: Date.now()
+            lastSyncedAt: Date.now(),
+            updatedAt: new Date().toISOString()
           };
-          if (args.garments && typeof args.garments === "object") {
+          if (args.garments && typeof args.garments === "object" && !Array.isArray(args.garments)) {
             updatePayload.garments = args.garments;
           }
-          if (Array.isArray(args.catalogGarments)) {
-            updatePayload.catalogGarments = args.catalogGarments;
+          if (args.catalogGarments !== undefined) {
+            updatePayload.catalogGarments = normalizeCatalogGarmentsMap(args.catalogGarments);
           }
 
           await adminDb.collection('pricing').doc('global').set(updatePayload, { merge: true });

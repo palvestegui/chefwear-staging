@@ -29,7 +29,7 @@ export interface PriceReferenceProps {
     specialPresetBundles?: Record<string, SpecialPresetBundle[]>;
     services?: ServiceItem[];
     catalogGarments?: Record<string, CatalogGarmentPricing>;
-    updatedAt?: number;
+    updatedAt?: string | number;
   } | null;
   cataloguePrices?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number>>;
   udiPricing?: Record<string, Record<string, number> | number>;
@@ -127,8 +127,9 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
           let b2b = 0;
 
           if (typeof priceVal === 'object' && priceVal !== null) {
-            raleo = Number((priceVal as any).priceRaleo ?? (priceVal as any).price ?? 0);
-            b2b = Number((priceVal as any).priceB2B ?? (priceVal as any).price ?? 0);
+            const pObj = priceVal as { priceRaleo?: number; priceB2B?: number; price?: number };
+            raleo = Number(pObj.priceRaleo ?? pObj.price ?? 0);
+            b2b = Number(pObj.priceB2B ?? pObj.price ?? 0);
           } else if (typeof priceVal === 'number') {
             raleo = priceVal;
             b2b = priceVal;

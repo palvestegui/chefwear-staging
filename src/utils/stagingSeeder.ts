@@ -158,7 +158,7 @@ export async function initStagingSeed(db: Firestore): Promise<void> {
       await setDoc(pricingDocRef, {
         ...DEFAULT_PRICING,
         createdAt: timestamp,
-        updatedAt: Date.now()
+        updatedAt: new Date().toISOString()
       });
     }
   } catch (err: unknown) {
@@ -203,7 +203,7 @@ export async function restoreCanonicalUdiAndServices(firestoreDb: Firestore): Pr
         ]
       }
     },
-    updatedAt: Date.now()
+    updatedAt: new Date().toISOString()
   };
 
   // 1. Merge UDI presets, 50 services, and discount rules safely
