@@ -1,52 +1,193 @@
 rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model (Staging Mode with Guardrail)
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (Firebase Auth UID or pre-provisioned lowercase email)
+// Fields:
+//   - uid: string (optional, <= 128)
+//   - id: string (optional, <= 128)
+//   - email: string (required on create, <= 254; immutable on self-update)
+//   - emailLower: string (optional, <= 254; immutable on self-update)
+//   - displayName: string (optional, <= 120)
+//   - name: string (optional, <= 120)
+//   - photoURL: string | null (optional, <= 1024)
+//   - role: string (optional, <= 40; privileged roles restricted to admins)
+//   - status: string (optional, <= 30; self-create restricted to 'PENDING')
+//   - approved: bool (optional; self-create restricted to false)
+//   - canExport: bool (optional; immutable on self-update, false on self-create)
+//   - canEditPrices: bool (optional; immutable on self-update, false on self-create)
+//   - canManageRoles: bool (optional; immutable on self-update, false on self-create)
+//   - canAccessDangerZone: bool (optional; immutable on self-update, false on self-create)
+//   - preProvisioned: bool (optional)
+//   - boundAt: timestamp | number | string (optional)
+//   - lastLoginAt: timestamp | number | string (optional)
+//   - createdAt: timestamp | number | string (optional; immutable on self-update)
+//   - updatedAt: timestamp | number | string (optional)
+//
+// Collection: pricing
+// Document ID: {docId} (e.g., 'global')
+// Fields:
+//   - updatedAt: string (optional, <= 64)
+//   - catalogGarments: map (optional)
+//   - garments: map (optional)
+//   - lastSyncedAt: number (optional)
+//
+// Staging CRM & Operations Collections (temporarily open for loginAsStagingAdmin):
+//   - clientAccounts, masterContacts, account_contacts, orders, settings
+//   - Swap to firestore.strict.rules before production deployment.
+//
+// ===============================================================
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // User profile and pre-provisioned account rules (PRESERVED IN FULL)
-    match /users/{userId} {
-      allow read: if request.auth != null && (
-        request.auth.uid == userId ||
-        resource.data.email == request.auth.token.email ||
-        request.auth.token.email == 'palvestegui@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN']
-      );
 
-      allow create: if request.auth != null && (
-        (request.auth.uid == userId && request.resource.data.email == request.auth.token.email) ||
-        request.auth.token.email == 'palvestegui@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canManageRoles == true
-      );
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
 
-      allow update: if request.auth != null && (
-        request.auth.uid == userId ||
-        request.auth.token.email == 'palvestegui@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.canManageRoles == true
-      );
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-      allow delete: if request.auth != null && (
-        resource.data.email == request.auth.token.email ||
-        request.auth.uid == userId ||
+    function callerUserDocPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function isAdminCaller() {
+      return isAuthenticated() && (
         request.auth.token.email == 'palvestegui@gmail.com' ||
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN']
+        (
+          exists(callerUserDocPath()) && (
+            get(callerUserDocPath()).data.get('role', '') in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN'] ||
+            get(callerUserDocPath()).data.get('canManageRoles', false) == true
+          )
+        )
       );
     }
 
+    function isValidOptionalString(data, field, maxLen) {
+      return !(field in data) || data[field] == null || (data[field] is string && data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalBool(data, field) {
+      return !(field in data) || data[field] == null || data[field] is bool;
+    }
+
+    function isValidOptionalFlexibleTimestamp(data, field) {
+      return !(field in data) || data[field] == null ||
+        data[field] is timestamp ||
+        data[field] is number ||
+        (data[field] is string && data[field].size() <= 64);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function hasOnlyAllowedUserFields(data) {
+      return data.keys().hasOnly([
+        'uid', 'id', 'email', 'emailLower', 'displayName', 'name', 'photoURL',
+        'role', 'status', 'approved', 'canExport', 'canEditPrices',
+        'canManageRoles', 'canAccessDangerZone', 'preProvisioned',
+        'boundAt', 'lastLoginAt', 'createdAt', 'updatedAt'
+      ]);
+    }
+
+    function isValidUserWrite(data) {
+      return data.keys().size() <= 30 &&
+        isValidOptionalString(data, 'uid', 128) &&
+        isValidOptionalString(data, 'id', 128) &&
+        isValidOptionalString(data, 'email', 254) &&
+        isValidOptionalString(data, 'emailLower', 254) &&
+        isValidOptionalString(data, 'displayName', 120) &&
+        isValidOptionalString(data, 'name', 120) &&
+        isValidOptionalString(data, 'photoURL', 1024) &&
+        isValidOptionalString(data, 'role', 40) &&
+        isValidOptionalString(data, 'status', 30) &&
+        isValidOptionalBool(data, 'approved') &&
+        isValidOptionalBool(data, 'canExport') &&
+        isValidOptionalBool(data, 'canEditPrices') &&
+        isValidOptionalBool(data, 'canManageRoles') &&
+        isValidOptionalBool(data, 'canAccessDangerZone') &&
+        isValidOptionalBool(data, 'preProvisioned') &&
+        isValidOptionalFlexibleTimestamp(data, 'boundAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'lastLoginAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'createdAt') &&
+        isValidOptionalFlexibleTimestamp(data, 'updatedAt');
+    }
+
     function isValidPricingWrite(data) {
-      return (!('updatedAt' in data) || data.updatedAt is string) &&
+      return (!('updatedAt' in data) || (data.updatedAt is string && data.updatedAt.size() <= 64)) &&
         (!('catalogGarments' in data) || data.catalogGarments is map) &&
         (!('garments' in data) || data.garments is map) &&
         (!('lastSyncedAt' in data) || data.lastSyncedAt is number);
     }
 
-    // Pricing & Catalog documents
-    match /pricing/{docId} {
-      allow read: if true;
-      allow write: if isValidPricingWrite(request.resource.data);
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // Hardened user profile and role-assignment rules (prevents self-privilege escalation)
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == userId ||
+        isAdminCaller() ||
+        resource.data.email == request.auth.token.email
+      );
+
+      allow create: if isAuthenticated() &&
+        isValidUserWrite(request.resource.data) &&
+        hasOnlyAllowedUserFields(request.resource.data) && (
+          isAdminCaller() || (
+            request.auth.uid == userId &&
+            request.resource.data.email == request.auth.token.email &&
+            (!('role' in request.resource.data) || !(request.resource.data.role in ['SUPER_ADMIN', 'SUPERADMIN', 'ADMIN', 'ADMIN_PROD'])) &&
+            request.resource.data.get('canManageRoles', false) == false &&
+            request.resource.data.get('canEditPrices', false) == false &&
+            request.resource.data.get('canAccessDangerZone', false) == false &&
+            request.resource.data.get('canExport', false) == false &&
+            request.resource.data.get('status', 'PENDING') == 'PENDING' &&
+            request.resource.data.get('approved', false) == false
+          )
+        );
+
+      allow update: if isAuthenticated() &&
+        isValidUserWrite(request.resource.data) && (
+          isAdminCaller() || (
+            request.auth.uid == userId &&
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'role',
+              'canManageRoles',
+              'canEditPrices',
+              'canAccessDangerZone',
+              'canExport',
+              'status',
+              'approved',
+              'email',
+              'emailLower',
+              'createdAt'
+            ])
+          )
+        );
+
+      allow delete: if isAuthenticated() && (
+        isAdminCaller() ||
+        request.auth.uid == userId ||
+        resource.data.email == request.auth.token.email
+      );
     }
 
-    // Staging CRM & Operations Collections (Unblocks testing while Google OAuth is shelved)
+    // Pricing & Catalog documents (Staging guardrail: open read/create/update; delete admin-only)
+    match /pricing/{docId} {
+      allow read: if true;
+      allow create, update: if isValidPricingWrite(request.resource.data);
+      allow delete: if isAdminCaller();
+    }
+
+    // Staging CRM & Operations Collections (Unblocks loginAsStagingAdmin local testing)
     match /clientAccounts/{docId} {
       allow read, write: if true;
     }

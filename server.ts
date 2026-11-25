@@ -8,24 +8,11 @@ import { createServer as createViteServer } from "vite";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import { db } from "./src/firebase";
 import { adminDb } from "./src/server/adminDb";
-
-function normalizeCatalogGarmentsMap(raw: unknown): Record<string, unknown> {
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  if (Array.isArray(raw)) {
-    const mapped: Record<string, unknown> = {};
-    raw.forEach((item, index) => {
-      if (item && typeof item === "object") {
-        const entry = item as { name?: unknown; sku?: unknown; id?: unknown };
-        const key = String(entry.name || entry.sku || entry.id || `item_${index}`);
-        mapped[key] = item;
-      }
-    });
-    return mapped;
-  }
-  return {};
-}
+import {
+  isAuthorizedPulseRequest,
+  isAuthorizedSyncRequest,
+  normalizeCatalogGarmentsMap,
+} from "./src/server/syncAuth";
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -50,7 +37,7 @@ async function startServer() {
     const origin = req.headers.origin || "*";
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-sync-api-key, x-pulse-key");
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
@@ -59,6 +46,9 @@ async function startServer() {
 
   // Direct pricing sync ingestion endpoint (supports aliases: /api/pricing/sync, /api/sync-to-ventas, /api/sync-pricing, /sync)
   const handleCatalogSync = async (req: Request, res: Response) => {
+    if (!isAuthorizedSyncRequest(req)) {
+      return res.status(401).json({ success: false, error: "Unauthorized: invalid or missing SYNC_API_KEY" });
+    }
     try {
       const payload = {
         garments: (req.body?.garments && typeof req.body.garments === "object" && !Array.isArray(req.body.garments)
@@ -107,6 +97,13 @@ async function startServer() {
   // MCP JSON-RPC 2.0 Handler
   app.post("/mcp", async (req: Request, res: Response) => {
     const { id, method, params } = req.body as JsonRpcRequest;
+    if (!isAuthorizedPulseRequest(req)) {
+      return res.status(401).json({
+        jsonrpc: "2.0",
+        id: id ?? null,
+        error: { code: -32001, message: "Unauthorized: invalid or missing AZAFRAN_PULSE_KEY / SYNC_API_KEY" }
+      });
+    }
 
     if (method === "initialize") {
       return res.json({
