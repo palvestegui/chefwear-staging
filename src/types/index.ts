@@ -247,6 +247,7 @@ export interface AuthUserProfile {
   id?: string;
   role?: string;
   status?: string;
+  approved?: boolean;
   canExport?: boolean;
   canEditPrices?: boolean;
   canManageRoles?: boolean;

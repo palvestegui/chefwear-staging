@@ -2,7 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from './contexts/AuthContext';
 import { useData } from './contexts/DataContext';
 import { db } from './firebase';
-import { INITIAL_SIZE_TABLE, INITIAL_SIZE_TABLE_PANTALON, getDocType } from './utils/constants';
+import {
+  INITIAL_SIZE_TABLE,
+  INITIAL_SIZE_TABLE_PANTALON,
+  getDocType,
+  resolveAppRole,
+  isSalesOnlyRole,
+} from './utils/constants';
+import { Order } from './types';
 import { usePricingEngine } from './hooks/usePricingEngine';
 import { useFinanceActions } from './hooks/useFinanceActions';
 import { useOrderMutations } from './hooks/useOrderMutations';
@@ -51,14 +58,14 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (authLoading || !user || !userProfile || hasSetInitialLandingTab.current) return;
 
-    const role = userProfile.role ? userProfile.role.toUpperCase() : '';
+    const role = resolveAppRole(userProfile.role);
     if (role === 'VENTAS') {
       setActiveTab('ventas');
     } else if (role === 'OPERACIONES') {
       setActiveTab('operaciones');
     } else if (role === 'PRODUCCION') {
       setActiveTab('produccion');
-    } else if (role === 'ADMIN' || role === 'SUPERADMIN') {
+    } else if (role === 'ADMIN' || role === 'SUPER_ADMIN') {
       if (activeViewRole && activeViewRole !== 'admin') {
         setActiveTab(activeViewRole);
       } else {
@@ -73,10 +80,10 @@ export const App: React.FC = () => {
 
   // Modales
   const [showNewOrder, setShowNewOrder] = useState(false);
-  const [editingOrder, setEditingOrder] = useState<any>(null);
-  const [orderToCollect, setOrderToCollect] = useState<any>(null);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [orderToCollect, setOrderToCollect] = useState<Order | null>(null);
   const [manualAmount, setManualAmount] = useState('');
-  const [manualReceipt, setManualReceipt] = useState<any>(null);
+  const [manualReceipt, setManualReceipt] = useState<string | null>(null);
   const [viewingInvoiceId, setViewingInvoiceId] = useState<string | null>(null);
   const [viewingCancellationVoucherId, setViewingCancellationVoucherId] = useState<string | null>(null);
   const [viewingReceiptId, setViewingReceiptId] = useState<string | null>(null);
@@ -87,7 +94,7 @@ export const App: React.FC = () => {
   const [showQuickSizeModal, setShowQuickSizeModal] = useState(false);
   const [expandedLogoUrl, setExpandedLogoUrl] = useState<string | null>(null);
   const [showWhatsappFormatId, setShowWhatsappFormatId] = useState<string | null>(null);
-  const [editingRosterOrder, setEditingRosterOrder] = useState<any | null>(null);
+  const [editingRosterOrder, setEditingRosterOrder] = useState<Order | null>(null);
   const [isRosterReadOnly, setIsRosterReadOnly] = useState(false);
 
   // Estados de Cancelación
@@ -108,7 +115,9 @@ export const App: React.FC = () => {
   }, [isMigrationMode]);
 
   // Tablas de Tallas
-  const [garmentSizeTables, setGarmentSizeTables] = useState<any>(garmentSizeTablesFromDb || { filipina: INITIAL_SIZE_TABLE, pantalon: INITIAL_SIZE_TABLE_PANTALON });
+  const [garmentSizeTables, setGarmentSizeTables] = useState<Record<string, unknown>>(
+    garmentSizeTablesFromDb || { filipina: INITIAL_SIZE_TABLE, pantalon: INITIAL_SIZE_TABLE_PANTALON }
+  );
   useEffect(() => {
     if (garmentSizeTablesFromDb) setGarmentSizeTables(garmentSizeTablesFromDb);
   }, [garmentSizeTablesFromDb]);
@@ -129,9 +138,10 @@ export const App: React.FC = () => {
   }, []);
 
   const isApproved = userProfile?.approved !== false;
-  const isWriteDisabled = (view: string) => userProfile?.role === 'LECTURA' || ((userProfile?.role === 'VENDEDOR_PREVENTA' || userProfile?.role === 'VENTAS') && view !== 'ventas');
+  const resolvedRole = resolveAppRole(userProfile?.role);
+  const isWriteDisabled = (view: string) => resolvedRole === 'LECTURA' || (resolvedRole === 'VENTAS' && view !== 'ventas');
   const normRole = (r?: string) => r || userProfile?.role || 'LECTURA';
-  const formatDate = (d: any) => new Date(d).toLocaleDateString();
+  const formatDate = (d: string | number | Date) => new Date(d).toLocaleDateString();
 
   const { getItemUnitPrice, getOrderBreakdown, collapseUdiItems } = usePricingEngine(pricing);
   const { collectBalance, convertToOrder, isProcessingPayment } = useFinanceActions(
@@ -158,7 +168,7 @@ export const App: React.FC = () => {
     setViewingCancellationVoucherId
   );
 
-  const handleEditQuote = (quote: any) => {
+  const handleEditQuote = (quote: Order) => {
     setEditingOrder(quote);
     setShowNewOrder(true);
   };
@@ -217,7 +227,7 @@ export const App: React.FC = () => {
         />
       )}
       
-      {activeTab === 'clientes' && isApproved && userProfile?.role !== 'VENTAS' && (
+      {activeTab === 'clientes' && isApproved && !isSalesOnlyRole(userProfile?.role) && (
         <CRMView 
           clientAccounts={clientAccounts}
           masterContacts={masterContacts}
@@ -258,7 +268,7 @@ export const App: React.FC = () => {
         <LogisticsView orders={orders} isWriteDisabled={isWriteDisabled} updateStatus={updateStatus} />
       )}
 
-      {activeTab === 'reportes' && isApproved && userProfile?.role !== 'VENTAS' && (
+      {activeTab === 'reportes' && isApproved && !isSalesOnlyRole(userProfile?.role) && (
         <ReportsView 
           orders={orders} pricing={pricing}
           setExpandedLogoUrl={setExpandedLogoUrl}
@@ -276,7 +286,7 @@ export const App: React.FC = () => {
         />
       )}
 
-      {(activeTab === 'ajustes' || activeTab === 'tarifario' || activeTab === 'catalogo' || activeTab === 'mantenimiento') && isApproved && userProfile?.role !== 'VENTAS' && pricing && (
+      {(activeTab === 'ajustes' || activeTab === 'tarifario' || activeTab === 'catalogo' || activeTab === 'mantenimiento') && isApproved && !isSalesOnlyRole(userProfile?.role) && pricing && (
         <SettingsView
           pricing={pricing}
           orders={orders}

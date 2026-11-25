@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { doc, setDoc, writeBatch, Firestore } from 'firebase/firestore';
 import { handleFirestoreError, OperationType } from '../firebase';
 import {
@@ -28,7 +28,11 @@ export const useSettingsMutations = (
     services: [],
   });
 
+  const hasHydratedRef = useRef(false);
+  const isDirtyRef = useRef(false);
+
   const setSettingsForm: React.Dispatch<React.SetStateAction<unknown>> = (action) => {
+    isDirtyRef.current = true;
     if (typeof action === 'function') {
       const updater = action as (prev: SettingsFormState) => SettingsFormState;
       setSettingsFormState((prev) => updater(prev));
@@ -38,7 +42,8 @@ export const useSettingsMutations = (
   };
 
   useEffect(() => {
-    if (pricing) {
+    if (pricing && (!hasHydratedRef.current || !isDirtyRef.current)) {
+      hasHydratedRef.current = true;
       setSettingsFormState({
         garments: pricing.garments || {},
         udiPricing: pricing.udiPricing || {},
@@ -82,6 +87,7 @@ export const useSettingsMutations = (
       setEditingName(null);
       return;
     }
+    isDirtyRef.current = true;
     setSettingsFormState((p) => {
       const updateds = { ...p.garments };
       if (updateds[oldName]) {
@@ -180,6 +186,7 @@ export const useSettingsMutations = (
       };
 
       await setDoc(doc(db as Firestore, 'pricing', 'global'), payload, { merge: true });
+      isDirtyRef.current = false;
       setShowPricingConfirm(false);
       setShowPricingSuccess(true);
       setTimeout(() => setShowPricingSuccess(false), 3000);
@@ -194,12 +201,18 @@ export const useSettingsMutations = (
     setIsResetting(true);
     try {
       const firestoreDb = db as Firestore;
-      const batch = writeBatch(firestoreDb);
-      orders.forEach((o) => {
-        const orderId = (o as { id?: string } | null)?.id;
-        if (orderId) batch.delete(doc(firestoreDb, 'orders', orderId));
-      });
-      await batch.commit();
+      const orderIds = orders
+        .map((o) => (o as { id?: string } | null)?.id)
+        .filter((id): id is string => Boolean(id));
+      const CHUNK_SIZE = 450;
+      for (let i = 0; i < orderIds.length; i += CHUNK_SIZE) {
+        const chunk = orderIds.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(firestoreDb);
+        chunk.forEach((orderId) => {
+          batch.delete(doc(firestoreDb, 'orders', orderId));
+        });
+        await batch.commit();
+      }
       alert('La base de datos de pedidos fue restablecida con éxito. Todo ha sido limpiado para sus pruebas.');
       setIsResetConfirmOpen(false);
       setEnteredPin('');

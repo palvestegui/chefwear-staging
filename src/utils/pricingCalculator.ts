@@ -1,9 +1,18 @@
+import { OrderItem, ServicePricing } from '../types';
 import { 
   getEffectiveTierDiscountRules,
   getEffectiveDiscountConfig, 
   getVolumeDiscountPct,
   TierDiscountRules
 } from './discountRulesUtils';
+
+export type CalculatorOrderItem = Partial<OrderItem> & { accountId?: string };
+
+export interface DiscountRulesContainer {
+  discountRulesByTier?: Record<string, TierDiscountRules>;
+  specialPresetDiscounts?: Record<string, unknown>;
+  [key: string]: unknown;
+}
 import {
   getPricingTierFromClientType,
   resolveOrderTier
@@ -56,25 +65,25 @@ export interface DiscountEngineResult {
 }
 
 export const computeDiscountEngine = (
-  itemsList: any[],
+  itemsList: CalculatorOrderItem[],
   category: string = 'Personal',
   paymentMethod: string = '50/50 - Adelantado/Entrega',
   manualDiscount: number = 0,
   clientType?: string,
   accountId?: string,
-  calculateItemPriceRawFn?: (item: any, cat?: string, accId?: string, orderItems?: any[]) => number,
-  discountRulesByTierOrPresets?: Record<string, any>,
+  calculateItemPriceRawFn?: (item: CalculatorOrderItem, cat?: string, accId?: string, orderItems?: OrderItem[]) => number,
+  discountRulesByTierOrPresets?: DiscountRulesContainer,
   migrationFlatDiscount: number = 0,
-  pricingServices?: any[]
+  pricingServices?: ServicePricing[]
 ): DiscountEngineResult => {
-  const collapsedItems = collapseUdiItems(itemsList || []);
+  const collapsedItems = collapseUdiItems((itemsList || []) as OrderItem[]) as CalculatorOrderItem[];
   const getPrice = calculateItemPriceRawFn || (() => 0);
 
   // MIGRATION OVERRIDE: If there's a migration flat discount, completely bypass ALL discount rules.
   if (migrationFlatDiscount > 0) {
     let subtotal = 0;
     collapsedItems.forEach(item => {
-      subtotal += getPrice(item, category, accountId, collapsedItems);
+      subtotal += getPrice(item, category, accountId, collapsedItems as OrderItem[]);
     });
 
     const total = Math.max(0, subtotal - migrationFlatDiscount);
@@ -100,9 +109,11 @@ export const computeDiscountEngine = (
 
   // UNIFIED TIER DISCOUNTS LOOKUP:
   const activeTier = resolveOrderTier(collapsedItems, category, accountId, clientType);
+  const tierRulesMap = (discountRulesByTierOrPresets?.discountRulesByTier ||
+    discountRulesByTierOrPresets) as Record<string, TierDiscountRules> | undefined;
   const rules = getEffectiveTierDiscountRules(
     activeTier,
-    discountRulesByTierOrPresets?.discountRulesByTier || discountRulesByTierOrPresets,
+    tierRulesMap,
     discountRulesByTierOrPresets?.specialPresetDiscounts
   );
 
@@ -124,14 +135,14 @@ export const computeDiscountEngine = (
   let packageDiscountAmt = 0;
 
   collapsedItems.forEach(item => {
-    const itemRawPrice = getPrice(item, category, accountId, collapsedItems);
+    const itemRawPrice = getPrice(item, category, accountId, collapsedItems as OrderItem[]);
     
     // EMBROIDERY QUARANTINE: Subcontracted embroidery (logos, personalized names, matrices)
     // is strictly quarantined from discounts to protect external workshop outlays.
     const { totalQuarantinedCost } = extractItemEmbroideryCostBreakdown(
-      item,
+      item as OrderItem,
       pricingServices,
-      collapsedItems
+      collapsedItems as OrderItem[]
     );
     const itemDiscountablePrice = Math.max(0, itemRawPrice - totalQuarantinedCost);
 
@@ -234,10 +245,12 @@ export const computeDiscountEngine = (
 
   const rawOverallVol = subtotal > 0 ? (volumeDiscountAmt / subtotal) * 100 : 0;
   const rawOverallCash = subtotal > 0 ? (cashDiscountAmt / subtotal) * 100 : 0;
+  const rawOverallAuto =
+    subtotal > 0 ? ((volumeDiscountAmt + cashDiscountAmt + packageDiscountAmt) / subtotal) * 100 : 0;
   const overallVolPct = Math.round(rawOverallVol * 100) / 100;
   const overallCashPct = Math.round(rawOverallCash * 100) / 100;
   const cashDiscountPct = rules.cashDiscountPercent;
-  const overallAutoPct = Math.round((overallVolPct + overallCashPct + (packageDiscountAmt > 0 ? (rules.fullPackageDiscountPercent || 10) : 0)) * 100) / 100;
+  const overallAutoPct = Math.round(rawOverallAuto * 100) / 100;
 
   return {
     subtotal,

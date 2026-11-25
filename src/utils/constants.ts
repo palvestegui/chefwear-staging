@@ -204,3 +204,30 @@ export const LOGO_VOLUME_RATE_TABLE: VolumeScaledTier[] = [
   { minQty: 2, unitPrice: 40 },
   { minQty: 1, unitPrice: 70 },
 ];
+
+export type CanonicalAppRole =
+  | 'SUPER_ADMIN'
+  | 'ADMIN'
+  | 'OPERACIONES'
+  | 'PRODUCCION'
+  | 'VENTAS'
+  | 'LECTURA';
+
+export function resolveAppRole(rawRole?: string | null): CanonicalAppRole {
+  const upper = (rawRole || '').trim().toUpperCase();
+  if (upper === 'SUPER_ADMIN' || upper === 'SUPERADMIN') return 'SUPER_ADMIN';
+  if (upper === 'ADMIN' || upper === 'ADMIN_PROD') return 'ADMIN';
+  if (upper === 'OPERACIONES' || upper === 'OPS_LEON' || upper === 'OPS') return 'OPERACIONES';
+  if (upper === 'PRODUCCION' || upper === 'PRODUCCIÓN') return 'PRODUCCION';
+  if (upper === 'VENTAS' || upper === 'SALES' || upper === 'VENDEDOR_PREVENTA') return 'VENTAS';
+  return 'LECTURA';
+}
+
+export function isSalesOnlyRole(rawRole?: string | null): boolean {
+  return resolveAppRole(rawRole) === 'VENTAS';
+}
+
+export function isAdminOrSuperRole(rawRole?: string | null): boolean {
+  const role = resolveAppRole(rawRole);
+  return role === 'SUPER_ADMIN' || role === 'ADMIN';
+}

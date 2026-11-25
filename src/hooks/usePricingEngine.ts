@@ -182,7 +182,7 @@ export const usePricingEngine = (pricing: PricingData | null | undefined) => {
       item.embroideries?.reduce((a: number, e: string) => {
         if (e.startsWith('Otro:')) {
           const parts = e.split('|');
-          if (parts.length === 2) return a + parseFloat(parts[1]) || 0;
+          if (parts.length === 2) return a + (parseFloat(parts[1]) || 0);
         }
         return a;
       }, 0) || 0;
@@ -206,8 +206,8 @@ export const usePricingEngine = (pricing: PricingData | null | undefined) => {
       manualDiscount,
       clientType,
       accountId,
-      (it: PricingItemInput, cat?: string, accId?: string) =>
-        calculateItemPriceRaw(it, cat, accId, itemsList as OrderItem[]),
+      (it: PricingItemInput, cat?: string, accId?: string, orderItems?: OrderItem[]) =>
+        calculateItemPriceRaw(it, cat, accId, orderItems ?? (itemsList as OrderItem[])),
       {
         discountRulesByTier: effectivePricing?.discountRulesByTier,
         specialPresetDiscounts: effectivePricing?.specialPresetDiscounts,

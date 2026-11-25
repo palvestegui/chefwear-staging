@@ -1,5 +1,5 @@
 import { Order, OrderItem } from '../types';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { INITIAL_ORDER_STATE, INITIAL_ITEM_STATE } from '../utils/orderFormDefaults';
 
@@ -11,49 +11,68 @@ export const useOrderState = (editingOrder: Order | null, setEditingOrder: (orde
   const [orderHeaderMode, setOrderHeaderMode] = useState<'Cotización' | 'Orden Activa'>('Cotización');
   const [editingQuoteId, setEditingQuoteId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const initializedKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const isSuper = Boolean(
       isSuperAdmin ||
-      userProfile?.role === 'SUPER_ADMIN' ||
-      userProfile?.role === 'SUPERADMIN' ||
-      (user?.email && user.email.toLowerCase() === 'palvestegui@gmail.com')
+        userProfile?.role === 'SUPER_ADMIN' ||
+        userProfile?.role === 'SUPERADMIN' ||
+        (user?.email && user.email.toLowerCase() === 'palvestegui@gmail.com')
     );
     const defaultSeller = userProfile?.name || user?.displayName || '';
     const defaultEmail = userProfile?.email || user?.email || '';
     const defaultUid = userProfile?.uid || user?.uid || '';
+    const targetKey = editingOrder ? editingOrder.id || '__EDIT__' : '__NEW__';
 
-    if (editingOrder) {
-      setNewOrder({
-        ...INITIAL_ORDER_STATE,
-        ...editingOrder,
-        sellerName: (isSuper ? editingOrder.sellerName : defaultSeller) || defaultSeller,
-        sellerEmail: (isSuper ? editingOrder.sellerEmail : defaultEmail) || defaultEmail,
-        sellerUid: (isSuper ? editingOrder.sellerUid : defaultUid) || defaultUid,
-        items: editingOrder.items || []
-      });
-      setEditingQuoteId(editingOrder.id || null);
-      setOrderHeaderMode((editingOrder.id?.startsWith('COT-') || editingOrder.status === 'Estimado') ? 'Cotización' : 'Orden Activa');
-    } else {
-      setNewOrder({
-        ...INITIAL_ORDER_STATE,
-        sellerName: defaultSeller,
-        sellerEmail: defaultEmail,
-        sellerUid: defaultUid
-      });
-      setCurrentItem(INITIAL_ITEM_STATE);
-      setEditingQuoteId(null);
-      setOrderHeaderMode('Cotización');
+    if (initializedKeyRef.current !== targetKey) {
+      initializedKeyRef.current = targetKey;
+      if (editingOrder) {
+        setNewOrder({
+          ...INITIAL_ORDER_STATE,
+          ...editingOrder,
+          sellerName: (isSuper ? editingOrder.sellerName : defaultSeller) || defaultSeller,
+          sellerEmail: (isSuper ? editingOrder.sellerEmail : defaultEmail) || defaultEmail,
+          sellerUid: (isSuper ? editingOrder.sellerUid : defaultUid) || defaultUid,
+          items: editingOrder.items || [],
+        });
+        setEditingQuoteId(editingOrder.id || null);
+        setOrderHeaderMode(
+          editingOrder.id?.startsWith('COT-') || editingOrder.status === 'Estimado' ? 'Cotización' : 'Orden Activa'
+        );
+      } else {
+        setNewOrder({
+          ...INITIAL_ORDER_STATE,
+          sellerName: defaultSeller,
+          sellerEmail: defaultEmail,
+          sellerUid: defaultUid,
+        });
+        setCurrentItem(INITIAL_ITEM_STATE);
+        setEditingQuoteId(null);
+        setOrderHeaderMode('Cotización');
+      }
+      return;
     }
-  }, [editingOrder, userProfile, user]);
+
+    // Background profile refresh: only backfill missing seller identity without clobbering active form edits
+    if (defaultSeller || defaultEmail || defaultUid) {
+      setNewOrder((prev) => ({
+        ...prev,
+        sellerName: prev.sellerName || defaultSeller,
+        sellerEmail: prev.sellerEmail || defaultEmail,
+        sellerUid: prev.sellerUid || defaultUid,
+      }));
+    }
+  }, [editingOrder, userProfile, user, isSuperAdmin]);
 
   const resetForm = useCallback(() => {
+    initializedKeyRef.current = null;
     const defaultSeller = userProfile?.name || user?.displayName || '';
     setNewOrder({
       ...INITIAL_ORDER_STATE,
       sellerName: defaultSeller,
       sellerEmail: userProfile?.email || user?.email || '',
-      sellerUid: userProfile?.uid || user?.uid || ''
+      sellerUid: userProfile?.uid || user?.uid || '',
     });
     setCurrentItem(INITIAL_ITEM_STATE);
     setEditingQuoteId(null);
@@ -61,12 +80,18 @@ export const useOrderState = (editingOrder: Order | null, setEditingOrder: (orde
   }, [userProfile, user, setEditingOrder]);
 
   return {
-    newOrder, setNewOrder,
-    currentItem, setCurrentItem,
-    orderHeaderMode, setOrderHeaderMode,
-    editingQuoteId, setEditingQuoteId,
-    isSubmitting, setIsSubmitting,
+    newOrder,
+    setNewOrder,
+    currentItem,
+    setCurrentItem,
+    orderHeaderMode,
+    setOrderHeaderMode,
+    editingQuoteId,
+    setEditingQuoteId,
+    isSubmitting,
+    setIsSubmitting,
     resetForm,
-    userProfile, user
+    userProfile,
+    user,
   };
 };

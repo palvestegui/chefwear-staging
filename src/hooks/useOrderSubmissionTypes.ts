@@ -1,4 +1,5 @@
 import { Order, OrderItem, AuthUserProfile, FirebaseUserSubset } from '../types';
+import { ClientAccount, MasterContact } from '../types/crm';
 
 export interface OrderSubmissionState {
   newOrder: Order;
@@ -6,6 +7,8 @@ export interface OrderSubmissionState {
   editingQuoteId: string | null;
   userProfile: AuthUserProfile | null;
   user: FirebaseUserSubset | null;
+  clientAccounts?: ClientAccount[];
+  masterContacts?: MasterContact[];
   setIsSubmitting: (val: boolean) => void;
   resetForm: () => void;
 }
