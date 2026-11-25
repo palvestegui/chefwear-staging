@@ -12,6 +12,24 @@ export function isPricingMetadataKey(key: string): boolean {
   return key.startsWith('_') || PRICING_METADATA_KEYS.has(key);
 }
 
+export function isValidFabricPriceValue(val: unknown): boolean {
+  return (typeof val === 'object' && val !== null) || typeof val === 'number';
+}
+
+export function extractValidFabricEntries(
+  record: unknown
+): Array<[string, Record<string, unknown> | number]> {
+  if (!record || typeof record !== 'object') return [];
+  return Object.entries(record as Record<string, unknown>).filter(
+    (entry): entry is [string, Record<string, unknown> | number] =>
+      !isPricingMetadataKey(entry[0]) && isValidFabricPriceValue(entry[1])
+  );
+}
+
+export function extractValidFabricKeys(record: unknown): string[] {
+  return extractValidFabricEntries(record).map(([key]) => key);
+}
+
 export function normalizeLabel(value: string): string {
   return value
     .toLowerCase()

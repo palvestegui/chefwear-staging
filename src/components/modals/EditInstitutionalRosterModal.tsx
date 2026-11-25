@@ -1,20 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { X, Users, Plus, FileSpreadsheet, Save, Loader2, Sparkles, Lock } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, Firestore } from 'firebase/firestore';
 import { InstitutionalEmployee, expandRosterToOrderItems, provisionInstitutionalContacts } from '../../utils/institutionalOrderUtils';
 import { ensureCorporateAccountExists } from '../../utils/accountContactMutations';
+import { Contact, Order, PricingData } from '../../types';
+import { extractValidFabricKeys } from '../../domains/pricing/fabricAliasMap';
 import { InstitutionalRosterTable } from './newOrder/InstitutionalRosterTable';
 import { ExcelImportModal } from './newOrder/ExcelImportModal';
 import { EmployeeCustomMeasurementsModal } from './newOrder/EmployeeCustomMeasurementsModal';
-import { RosterGarmentTemplateBar, GarmentTemplate } from './roster/RosterGarmentTemplateBar';
+import { RosterGarmentTemplateBar, GarmentTemplate, PricingGarmentsConfig } from './roster/RosterGarmentTemplateBar';
 
 interface EditInstitutionalRosterModalProps {
-  order: any | null;
+  order: (Order & { services?: string[] }) | null;
   isOpen: boolean;
   onClose: () => void;
-  db: any;
-  pricing?: any;
-  masterContacts?: any[];
+  db: Firestore;
+  pricing?: PricingData | PricingGarmentsConfig | null;
+  masterContacts?: Contact[];
   readOnly?: boolean;
 }
 
@@ -51,7 +53,7 @@ export const EditInstitutionalRosterModal: React.FC<EditInstitutionalRosterModal
 
     if (order.institutionalRoster && Array.isArray(order.institutionalRoster) && order.institutionalRoster.length > 0) {
       const firstEmp = order.institutionalRoster[0];
-      (firstEmp.garments || []).forEach((g: any) => {
+      (firstEmp.garments || []).forEach((g) => {
         extractedTemplates.push({
           name: g.garmentName || 'Prenda',
           fabric: g.fabric || 'Drill de 8oz',
@@ -59,7 +61,7 @@ export const EditInstitutionalRosterModal: React.FC<EditInstitutionalRosterModal
         });
       });
     } else if (order.items && order.items.length > 0) {
-      order.items.forEach((it: any) => {
+      order.items.forEach((it) => {
         const key = `${it.name}_${it.fabric || ''}_${it.fabricColor || ''}`;
         if (!seen.has(key)) {
           seen.add(key);
@@ -81,7 +83,7 @@ export const EditInstitutionalRosterModal: React.FC<EditInstitutionalRosterModal
       setRoster(JSON.parse(JSON.stringify(order.institutionalRoster)));
     } else if (order.items && order.items.length > 0) {
       const empMap = new Map<string, InstitutionalEmployee>();
-      order.items.forEach((it: any, idx: number) => {
+      order.items.forEach((it, idx: number) => {
         const empName = it.recipientName || `Empleado #${idx + 1}`;
         if (!empMap.has(empName)) {
           empMap.set(empName, {
@@ -134,7 +136,8 @@ export const EditInstitutionalRosterModal: React.FC<EditInstitutionalRosterModal
   };
 
   const handleAddTemplateColumn = (garmentName: string = 'Mandil') => {
-    const availFabrics = pricing?.garments?.[garmentName] ? Object.keys(pricing.garments[garmentName]) : ['Drill de 8oz', 'Gabardina de 2da'];
+    const rawFabrics = pricing?.garments ? extractValidFabricKeys(pricing.garments[garmentName]) : [];
+    const availFabrics = rawFabrics.length > 0 ? rawFabrics : ['Drill de 8oz', 'Gabardina de 2da'];
     const defaultFabric = availFabrics[0] || 'Drill de 8oz';
     const newTpl = { name: garmentName, fabric: defaultFabric, fabricColor: '' };
     setTemplates(prev => [...prev, newTpl]);

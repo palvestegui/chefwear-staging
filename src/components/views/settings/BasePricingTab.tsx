@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { MasterDetailPricingView, MasterDetailPricingItem, PricingVariant } from '../../pricing/MasterDetailPricingView';
+import { isPricingMetadataKey, isValidFabricPriceValue } from '../../../domains/pricing/fabricAliasMap';
 
 export interface BasePricingTabProps {
   settingsForm: {
-    garments?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number; isPrimary?: boolean; fabricSku?: string; sku?: string } | number>>;
+    garments?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number; isPrimary?: boolean; fabricSku?: string; sku?: string } | number | string>>;
     [key: string]: unknown;
   };
 }
@@ -54,7 +55,7 @@ export const BasePricingTab: React.FC<BasePricingTabProps> = ({ settingsForm }) 
         }
 
         const variants: PricingVariant[] = Object.entries(fabricsObj || {})
-          .filter(([fabricName]) => !fabricName.startsWith('_') && fabricName !== 'sku' && fabricName !== 'baseGarment')
+          .filter(([fabricName, val]) => !isPricingMetadataKey(fabricName) && isValidFabricPriceValue(val))
           .map(([fabricName, val]) => {
             let raleo = 0;
             let b2b = 0;

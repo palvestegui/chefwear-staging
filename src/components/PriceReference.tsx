@@ -11,6 +11,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { CatalogGarmentPricing, SpecialPresetBundle } from '../types';
+import { isPricingMetadataKey, isValidFabricPriceValue } from '../domains/pricing/fabricAliasMap';
 import { CatalogReferenceCards } from './pricing/CatalogReferenceCards';
 import { CorporatePresetSection } from './pricing/CorporatePresetSection';
 
@@ -23,7 +24,7 @@ export interface ServiceItem {
 
 export interface PriceReferenceProps {
   pricing?: {
-    garments?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number>>;
+    garments?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number | string>>;
     udiPricing?: Record<string, Record<string, number> | number>;
     specialPresets?: Record<string, Record<string, Record<string, number> | number>>;
     specialPresetBundles?: Record<string, SpecialPresetBundle[]>;
@@ -31,7 +32,7 @@ export interface PriceReferenceProps {
     catalogGarments?: Record<string, CatalogGarmentPricing>;
     updatedAt?: string | number;
   } | null;
-  cataloguePrices?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number>>;
+  cataloguePrices?: Record<string, Record<string, { priceRaleo?: number; priceB2B?: number } | number | string>>;
   udiPricing?: Record<string, Record<string, number> | number>;
   specialPresets?: Record<string, Record<string, Record<string, number> | number>>;
   specialPresetBundles?: Record<string, SpecialPresetBundle[]>;
@@ -115,7 +116,9 @@ export const PriceReference: React.FC<PriceReferenceProps> = ({
       const fabricEntries = Object.entries(fabricsObj);
 
       const parsedFabrics = fabricEntries
-        .filter(([fabricName]) => {
+        .filter(([fabricName, priceVal]) => {
+          if (isPricingMetadataKey(fabricName)) return false;
+          if (!isValidFabricPriceValue(priceVal)) return false;
           // Standard business exclusion rule
           if (garmentName === 'Gorro' && (fabricName.includes('Tornado') || fabricName.includes('Gabardina de 1ra'))) {
             return false;

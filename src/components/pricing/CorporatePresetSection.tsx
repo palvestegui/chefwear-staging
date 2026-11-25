@@ -1,11 +1,22 @@
 import React from 'react';
 import { Award, Package } from 'lucide-react';
 import { SpecialPresetBundle } from '../../types';
+import { extractValidFabricEntries, extractValidFabricKeys } from '../../domains/pricing/fabricAliasMap';
 
 export interface CorporatePresetSectionProps {
   corporatePresets: Record<string, Record<string, Record<string, number> | number>> | null;
   bundlesByPreset?: Record<string, SpecialPresetBundle[]>;
   searchQuery?: string;
+}
+
+function readPresetPrice(val: unknown): number {
+  if (typeof val === 'number') return Number.isFinite(val) ? val : 0;
+  if (typeof val === 'object' && val !== null) {
+    const obj = val as { priceRaleo?: unknown; priceB2B?: unknown; price?: unknown };
+    const candidate = Number(obj.priceRaleo ?? obj.priceB2B ?? obj.price ?? 0);
+    return Number.isFinite(candidate) ? candidate : 0;
+  }
+  return 0;
 }
 
 export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
@@ -19,15 +30,14 @@ export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
 
   const tokens = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
 
-  const calculateBundleTotal = (bundleGarments: string[], presetGarments: Record<string, any>): number => {
+  const calculateBundleTotal = (bundleGarments: string[], presetGarments: Record<string, unknown>): number => {
     return bundleGarments.reduce((sum, gName) => {
       const gData = presetGarments[gName];
       if (!gData) return sum;
       if (typeof gData === 'number') return sum + gData;
-      for (const key of Object.keys(gData)) {
-        if (key === 'baseGarment') continue;
-        const val = Number(gData[key]);
-        if (!isNaN(val) && val > 0) return sum + val;
+      for (const [, val] of extractValidFabricEntries(gData)) {
+        const price = readPresetPrice(val);
+        if (price > 0) return sum + price;
       }
       return sum;
     }, 0);
@@ -36,17 +46,15 @@ export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
   return (
     <div className="space-y-10 pt-6 border-t border-stone-800">
       {Object.entries(corporatePresets).map(([presetKey, presetData]) => {
-        const rawGarments: Record<string, any> = (presetData && typeof presetData === 'object') ? presetData : {};
+        const rawGarments: Record<string, unknown> =
+          presetData && typeof presetData === 'object' ? (presetData as Record<string, unknown>) : {};
         const garmentKeys = Object.keys(rawGarments);
         const bundles: SpecialPresetBundle[] = bundlesByPreset[presetKey] || [];
 
         // Filter garments if searching
         const filteredGarments = garmentKeys.filter(gName => {
           if (tokens.length === 0) return true;
-          const gData = rawGarments[gName] || {};
-          const fabricKeys = typeof gData === 'object' && gData !== null
-            ? Object.keys(gData).filter(k => k !== 'baseGarment')
-            : [];
+          const fabricKeys = extractValidFabricKeys(rawGarments[gName]);
           const combinedText = `${presetKey.toLowerCase()} ${gName.toLowerCase()} ${fabricKeys.join(' ').toLowerCase()}`;
           return tokens.every(token =>
             presetKey.toLowerCase().includes(token) ||
@@ -120,10 +128,16 @@ export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
             {/* Garment Cards Grid for Active Corporate Preset */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {filteredGarments.map((garment) => {
-                const garmentFabrics = rawGarments[garment] || {};
-                const fabricKeys = typeof garmentFabrics === 'object' && garmentFabrics !== null
-                  ? Object.keys(garmentFabrics).filter(k => k !== 'baseGarment')
-                  : [];
+                const rawGarmentVal = rawGarments[garment];
+                const garmentFabrics =
+                  rawGarmentVal && typeof rawGarmentVal === 'object'
+                    ? (rawGarmentVal as Record<string, unknown>)
+                    : null;
+                const fabricEntries = extractValidFabricEntries(garmentFabrics);
+                const baseGarmentLabel =
+                  garmentFabrics && typeof garmentFabrics.baseGarment === 'string'
+                    ? garmentFabrics.baseGarment
+                    : '';
 
                 return (
                   <div key={garment} className="col-span-1 bg-stone-950 p-4 rounded-xl border border-stone-800 space-y-3">
@@ -131,18 +145,16 @@ export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
                       <h4 className="font-black text-amber-500 uppercase tracking-widest text-xs truncate">
                         {garment}
                       </h4>
-                      {garmentFabrics.baseGarment && (
+                      {baseGarmentLabel && (
                         <span className="text-[9px] font-mono font-bold text-stone-400 bg-stone-900 border border-stone-800 px-1.5 py-0.5 rounded uppercase">
-                          Base: {garmentFabrics.baseGarment}
+                          Base: {baseGarmentLabel}
                         </span>
                       )}
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      {fabricKeys.map((fabric) => {
-                        const priceValue = typeof garmentFabrics[fabric] === 'number'
-                          ? garmentFabrics[fabric]
-                          : (typeof garmentFabrics === 'number' ? garmentFabrics : 0);
+                      {fabricEntries.map(([fabric, val]) => {
+                        const priceValue = readPresetPrice(val);
 
                         return (
                           <div key={fabric} className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-lg border border-stone-800">
@@ -158,7 +170,7 @@ export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
                           </div>
                         );
                       })}
-                      {fabricKeys.length === 0 && typeof garmentFabrics === 'number' && (
+                      {fabricEntries.length === 0 && typeof rawGarmentVal === 'number' && (
                         <div className="flex justify-between items-center bg-stone-900 px-3 py-2 rounded-lg border border-stone-800">
                           <span className="font-bold text-stone-300 text-xs truncate flex-1">
                             Estándar
@@ -166,7 +178,7 @@ export const CorporatePresetSection: React.FC<CorporatePresetSectionProps> = ({
                           <div className="flex items-center gap-1.5">
                             <div className="bg-stone-950 px-3 py-1 rounded border border-stone-700 text-amber-500 text-xs font-mono font-bold text-right">
                               <span className="text-[10px] text-stone-500 mr-1">Bs</span>
-                              {garmentFabrics}
+                              {rawGarmentVal}
                             </div>
                           </div>
                         </div>

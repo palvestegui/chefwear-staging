@@ -17,6 +17,7 @@ import { InstitutionalRosterTable } from './InstitutionalRosterTable';
 import { ExcelImportModal } from './ExcelImportModal';
 import { EmployeeCustomMeasurementsModal } from './EmployeeCustomMeasurementsModal';
 import { RosterGarmentTemplateBar, GarmentTemplate, PricingGarmentsConfig } from '../roster/RosterGarmentTemplateBar';
+import { extractValidFabricKeys } from '../../../domains/pricing/fabricAliasMap';
 
 export interface GarmentTemplateInput {
   name: string;
@@ -126,9 +127,8 @@ export const InstitutionalRosterModal: React.FC<InstitutionalRosterModalProps> =
   };
 
   const handleAddTemplateColumn = (garmentName: string = 'Mandil') => {
-    const availFabrics = (pricing?.garments && pricing.garments[garmentName])
-      ? Object.keys(pricing.garments[garmentName])
-      : ['Drill de 8oz', 'Gabardina de 2da'];
+    const rawFabrics = pricing?.garments ? extractValidFabricKeys(pricing.garments[garmentName]) : [];
+    const availFabrics = rawFabrics.length > 0 ? rawFabrics : ['Drill de 8oz', 'Gabardina de 2da'];
     const defaultFabric = availFabrics[0] || 'Drill de 8oz';
     const newTpl: GarmentTemplate = { name: garmentName, fabric: defaultFabric, fabricColor: '' };
     setTemplateGarments(prev => [...prev, newTpl]);

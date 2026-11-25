@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, Plus, Trash2 } from 'lucide-react';
+import { extractValidFabricKeys } from '../../../domains/pricing/fabricAliasMap';
 
 export interface GarmentTemplate {
   name: string;
@@ -8,8 +9,7 @@ export interface GarmentTemplate {
 }
 
 export interface PricingGarmentsConfig {
-  garments?: Record<string, Record<string, number>>;
-  [key: string]: unknown;
+  garments?: Record<string, Record<string, unknown>>;
 }
 
 interface RosterGarmentTemplateBarProps {
@@ -69,8 +69,9 @@ export const RosterGarmentTemplateBar: React.FC<RosterGarmentTemplateBarProps> =
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
         {templates.map((tpl, tIdx) => {
-          const baseAvailFabrics = (pricing?.garments && pricing.garments[tpl.name]) 
-            ? Object.keys(pricing.garments[tpl.name])
+          const rawFabrics = pricing?.garments ? extractValidFabricKeys(pricing.garments[tpl.name]) : [];
+          const baseAvailFabrics = rawFabrics.length > 0
+            ? rawFabrics
             : ['Drill de 8oz', 'Gabardina', 'Gabardina de 2da', 'Tornado (Bull Denim)', 'Jean'];
           const selectableFabrics = Array.from(new Set([...baseAvailFabrics, tpl.fabric].filter(Boolean)));
 
