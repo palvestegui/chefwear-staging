@@ -193,10 +193,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
       return;
     }
 
+    let cancelled = false;
     let unsubProfile: (() => void) | null = null;
-    
+
     const unsubAuth = onAuthStateChanged(auth, async (authUser) => {
-      if (isStagingBypass) return;
+      if (cancelled || isStagingBypass) return;
 
       setUser(authUser);
       if (!authUser) {
@@ -212,11 +213,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
 
       try {
         const userDocRef = doc(db, 'users', authUser.uid);
-        
+
         await syncUserDocument(db, authUser);
+        if (cancelled) return;
 
         if (unsubProfile) unsubProfile();
         unsubProfile = onSnapshot(userDocRef, (snap) => {
+          if (cancelled) return;
           if (snap.exists()) {
             const profile = buildUserProfileFromDoc(authUser, snap.data());
             setRawUserProfile(profile);
@@ -227,16 +230,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode, auth?: Auth, db
           }
           setIsLoading(false);
         }, (error) => {
+          if (cancelled) return;
           console.error("User profile snapshot error:", error);
           setIsLoading(false);
         });
       } catch (err) {
+        if (cancelled) return;
         console.error("Auth profile resolution error:", err);
         setIsLoading(false);
       }
     });
 
     return () => {
+      cancelled = true;
       unsubAuth();
       if (unsubProfile) unsubProfile();
     };
