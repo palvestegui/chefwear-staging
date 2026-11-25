@@ -4,64 +4,19 @@ import { PricingData } from '../types';
 import { requiredFields } from './constants';
 import { isServiceApplicable, ServiceItem } from './serviceUtils';
 
-export interface CatalogOptionItem {
+export type GarmentPillKey = 'convenio' | 'base' | 'filipinas' | 'mandiles' | 'chamarras' | 'otros';
+
+export interface GarmentComboboxItem {
   name: string;
+  source: 'convenio' | 'base' | 'catalogo';
   category?: string;
   sku?: string;
+  pillBucket: Exclude<GarmentPillKey, 'convenio' | 'base'>;
 }
 
-export interface GroupedGarmentOptions {
-  presetGarments: string[];
-  baseGarments: string[];
-  catalogGarments: CatalogOptionItem[];
-}
-
-export function buildGroupedGarmentOptions(
-  pricing: PricingData | null | undefined,
-  activePresetKey: string | null,
-  specialPresets: Record<string, Record<string, unknown>>
-): GroupedGarmentOptions {
-  const seen = new Set<string>();
-  const sortEs = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
-
-  const presetRaw = activePresetKey && specialPresets[activePresetKey]
-    ? Object.keys(specialPresets[activePresetKey])
-    : [];
-  const presetGarments = presetRaw
-    .filter((name) => {
-      const norm = normalizeLabel(name);
-      if (!norm || seen.has(norm)) return false;
-      seen.add(norm);
-      return true;
-    })
-    .sort(sortEs);
-
-  const baseRaw = Object.keys(pricing?.garments || {});
-  const baseGarments = baseRaw
-    .filter((name) => {
-      const norm = normalizeLabel(name);
-      if (!norm || seen.has(norm)) return false;
-      seen.add(norm);
-      return true;
-    })
-    .sort(sortEs);
-
-  const parsedCatalog = parseCatalog(pricing?.catalogGarments);
-  const catalogGarments: CatalogOptionItem[] = [];
-  for (const entry of parsedCatalog) {
-    const rawName = (entry.name || entry.id || '').trim();
-    const norm = normalizeLabel(rawName);
-    if (!rawName || !norm || seen.has(norm)) continue;
-    seen.add(norm);
-    catalogGarments.push({
-      name: rawName,
-      category: entry.category,
-      sku: entry.sku,
-    });
-  }
-  catalogGarments.sort((a, b) => sortEs(a.name, b.name));
-
-  return { presetGarments, baseGarments, catalogGarments };
+export interface GarmentPickerCatalog {
+  pills: Record<GarmentPillKey, GarmentComboboxItem[]>;
+  allUnique: GarmentComboboxItem[];
 }
 
 export function resolveCatalogCategory(
@@ -111,6 +66,139 @@ export function resolveGarmentBaseFamily(
   if (haystack.includes('chamarra') || haystack.includes('chaqueta')) return 'Chamarra';
   if (haystack.includes('filipina')) return 'Filipina';
   return garmentName;
+}
+
+export function resolveGarmentPillBucket(
+  garmentName: string,
+  catalogCategory?: string
+): Exclude<GarmentPillKey, 'convenio' | 'base'> {
+  const family = resolveGarmentBaseFamily(garmentName, catalogCategory);
+  if (family === 'Filipina') return 'filipinas';
+  if (family === 'Mandil') return 'mandiles';
+  if (family === 'Chamarra') return 'chamarras';
+  return 'otros';
+}
+
+export function buildGarmentPickerCatalog(
+  pricing: PricingData | null | undefined,
+  activePresetKey: string | null,
+  specialPresets: Record<string, Record<string, unknown>>,
+  includeUdiBundle: boolean
+): GarmentPickerCatalog {
+  const sortEs = (a: { name: string }, b: { name: string }) =>
+    a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+
+  const pills: Record<GarmentPillKey, GarmentComboboxItem[]> = {
+    convenio: [],
+    base: [],
+    filipinas: [],
+    mandiles: [],
+    chamarras: [],
+    otros: [],
+  };
+
+  if (activePresetKey && specialPresets[activePresetKey]) {
+    const presetNames = Object.keys(specialPresets[activePresetKey])
+      .filter((n) => n.trim().length > 0 && n !== 'Uniforme Completo UDI')
+      .sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+    if (includeUdiBundle) {
+      pills.convenio.push({
+        name: 'Uniforme Completo UDI',
+        source: 'convenio',
+        category: 'Pack UDI',
+        pillBucket: 'otros',
+      });
+    }
+    for (const name of presetNames) {
+      pills.convenio.push({
+        name,
+        source: 'convenio',
+        pillBucket: resolveGarmentPillBucket(name),
+      });
+    }
+  } else if (includeUdiBundle) {
+    pills.convenio.push({
+      name: 'Uniforme Completo UDI',
+      source: 'convenio',
+      category: 'Pack UDI',
+      pillBucket: 'otros',
+    });
+  }
+
+  const baseRaw = (pricing?.garments || {}) as Record<string, Record<string, unknown>>;
+  const baseSeen = new Set<string>();
+  const baseItems: GarmentComboboxItem[] = [];
+  for (const name of Object.keys(baseRaw)) {
+    const norm = normalizeLabel(name);
+    if (!name.trim() || !norm || baseSeen.has(norm)) continue;
+    baseSeen.add(norm);
+    const gObj = baseRaw[name];
+    const sku = gObj && typeof gObj === 'object' && typeof gObj.sku === 'string' ? gObj.sku : undefined;
+    baseItems.push({
+      name,
+      source: 'base',
+      sku,
+      pillBucket: resolveGarmentPillBucket(name),
+    });
+  }
+  baseItems.sort(sortEs);
+  pills.base = baseItems;
+
+  const catalogItems: GarmentComboboxItem[] = [];
+  const catSeen = new Set<string>(baseSeen);
+  for (const entry of parseCatalog(pricing?.catalogGarments)) {
+    const rawName = (entry.name || entry.id || '').trim();
+    const norm = normalizeLabel(rawName);
+    if (!rawName || !norm || catSeen.has(norm)) continue;
+    catSeen.add(norm);
+    catalogItems.push({
+      name: rawName,
+      source: 'catalogo',
+      category: entry.category,
+      sku: entry.sku,
+      pillBucket: resolveGarmentPillBucket(rawName, entry.category),
+    });
+  }
+  catalogItems.sort(sortEs);
+
+  for (const item of baseItems) {
+    pills[item.pillBucket].push(item);
+  }
+  for (const item of catalogItems) {
+    pills[item.pillBucket].push(item);
+  }
+
+  const allUniqueMap = new Map<string, GarmentComboboxItem>();
+  for (const item of [...pills.convenio, ...pills.base, ...catalogItems]) {
+    const norm = normalizeLabel(item.name);
+    if (norm && !allUniqueMap.has(norm)) {
+      allUniqueMap.set(norm, item);
+    }
+  }
+
+  return { pills, allUnique: Array.from(allUniqueMap.values()) };
+}
+
+export function filterComboboxItems(
+  catalog: GarmentPickerCatalog,
+  activePill: GarmentPillKey,
+  query: string
+): GarmentComboboxItem[] {
+  const cleanQuery = normalizeLabel(query);
+  if (!cleanQuery) return catalog.pills[activePill];
+
+  const pillSet = new Set(catalog.pills[activePill].map((i) => normalizeLabel(i.name)));
+  return catalog.allUnique
+    .filter((item) => {
+      const hay = normalizeLabel(`${item.name} ${item.category || ''} ${item.sku || ''}`);
+      return hay.includes(cleanQuery);
+    })
+    .sort((a, b) => {
+      const aIn = pillSet.has(normalizeLabel(a.name)) ? 0 : 1;
+      const bIn = pillSet.has(normalizeLabel(b.name)) ? 0 : 1;
+      if (aIn !== bIn) return aIn - bIn;
+      return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+    });
 }
 
 export function resolveGarmentSizingKey(
