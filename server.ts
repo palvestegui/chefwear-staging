@@ -11,7 +11,7 @@ import { adminDb, isAdminDbAvailable } from "./src/server/adminDb";
 import { persistCatalogMediaDocs, splitCatalogMedia, CatalogMediaWriteItem } from "./src/server/catalogMediaSync";
 import {
   isAuthorizedPulseRequest,
-  isAuthorizedSyncRequest,
+  verifyAuthorizedSyncRequest,
   normalizeCatalogGarmentsMap,
 } from "./src/server/syncAuth";
 
@@ -38,7 +38,7 @@ async function startServer() {
     const origin = req.headers.origin || "*";
     res.header("Access-Control-Allow-Origin", origin);
     res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-sync-api-key, x-pulse-key");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, x-sync-api-key, x-pulse-key, x-firebase-id-token");
     if (req.method === "OPTIONS") {
       return res.sendStatus(200);
     }
@@ -46,22 +46,29 @@ async function startServer() {
   });
 
   const writePricingGlobal = async (payload: Record<string, unknown>): Promise<"admin" | "client"> => {
+    let adminErrMessage: string | null = null;
     if (isAdminDbAvailable) {
       try {
         await adminDb.collection("pricing").doc("global").set(payload, { merge: true });
         return "admin";
       } catch (adminErr: unknown) {
-        console.warn("[Sync] adminDb error, falling back to client Firestore SDK:", adminErr instanceof Error ? adminErr.message : String(adminErr));
+        adminErrMessage = adminErr instanceof Error ? adminErr.message : String(adminErr);
+        console.warn("[Sync] adminDb error, falling back to client Firestore SDK:", adminErrMessage);
       }
     }
-    await setDoc(doc(db, "pricing", "global"), payload, { merge: true });
-    return "client";
+    try {
+      await setDoc(doc(db, "pricing", "global"), payload, { merge: true });
+      return "client";
+    } catch (clientErr: unknown) {
+      const clientMsg = clientErr instanceof Error ? clientErr.message : String(clientErr);
+      throw adminErrMessage ? new Error(`Admin DB failed (${adminErrMessage}); client fallback failed (${clientMsg})`) : clientErr;
+    }
   };
 
   // Direct pricing sync ingestion endpoint (supports aliases: /api/pricing/sync, /api/sync-to-ventas, /api/sync-pricing, /sync)
   const handleCatalogSync = async (req: Request, res: Response) => {
-    if (!isAuthorizedSyncRequest(req)) {
-      return res.status(401).json({ success: false, error: "Unauthorized: invalid or missing SYNC_API_KEY" });
+    if (!(await verifyAuthorizedSyncRequest(req))) {
+      return res.status(401).json({ success: false, error: "Unauthorized: valid SYNC_API_KEY or verified admin Firebase ID token required" });
     }
     try {
       const payload: Record<string, unknown> = {
